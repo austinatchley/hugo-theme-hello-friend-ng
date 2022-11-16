@@ -1,5 +1,7 @@
 # Hello Friend NG
 
+This is my fork of Hello Friend NG. The information below comes from the original author's README:
+
 ![Hello Friend NG](https://dsh.re/d914c)
 
 ## General informations
