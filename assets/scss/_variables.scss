@@ -9,16 +9,18 @@ $light-color-variant: black;
 $light-color-secondary: #999;
 $light-border-color: #dcdcdc;
 $light-table-color: #dcdcdc;
+$light-code-font-color: #24292F;
 
 /* Dark theme colors */
 $dark-background: #15202b;
-$dark-background-secondary: #3b3d42;
+$dark-background-secondary: #2a2e3a;
 $dark-background-header: #161F29;
 $dark-color: #c0c0ca;
 $dark-color-variant: white;
 $dark-color-secondary: #b3b3bd;
 $dark-border-color: #4e4e57;
 $dark-table-color: #4e4e57;
+$dark-code-font-color: inherit;
 
 $media-size-phone: "(max-width: 684px)";
 $media-size-tablet: "(max-width: 900px)";
