@@ -10,22 +10,22 @@
     td {
       padding: 12px 15px;
       // Default
-      border: 1px solid $light-table-color;
+      border-bottom: 1px solid $light-table-color;
       
       @media (prefers-color-scheme: dark) {
-        border: 1px solid $dark-table-color;
+        border-bottom: 1px solid $dark-table-color;
       }
     
       @media (prefers-color-scheme: light) {
-        border: 1px solid $light-table-color;
+        border-bottom: 1px solid $light-table-color;
       }
     
       [data-theme=dark] & {
-        border: 1px solid $dark-table-color;
+        border-bottom: 1px solid $dark-table-color;
       }
     
       [data-theme=light] & {
-        border: 1px solid $light-table-color;
+        border-bottom: 1px solid $light-table-color;
       }
     }
 
@@ -61,7 +61,7 @@
     tbody {
       tr {
         // Default
-        border: 1px solid $light-table-color;
+        border: 4px solid $light-table-color;
         
         @media (prefers-color-scheme: dark) {
           border: 1px solid $dark-table-color;
