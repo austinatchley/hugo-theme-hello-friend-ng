@@ -247,7 +247,7 @@ code {
   border-radius: 5px;
   font-size: 0.95rem;
   // Default
-  background: $light-background-secondary;
+  background: black;
 
   @media (prefers-color-scheme: dark) {
     background: $dark-background-secondary;
