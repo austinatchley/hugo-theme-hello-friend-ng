@@ -468,6 +468,7 @@ hr {
 }
 
 .post {
+  word-wrap: break-word;
   background-color: $dark-background-post;
 
     @media (prefers-color-scheme: dark) {
