@@ -72,12 +72,13 @@
     margin-right: 15px;
     text-decoration: none;
 
-    &:hover {
-      text-decoration: underline;
-    }
-
     &:last-of-type {
       margin-right: 0;
+    }
+
+    &:active {
+      filter: invert(100%);
+      -webkit-filter: invert(100%);
     }
   }
 }
