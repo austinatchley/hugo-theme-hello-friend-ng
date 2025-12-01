@@ -458,6 +458,12 @@ hr {
   background-position: center center;
 }
 
+.portrait-image {
+  // Soft edges using CSS masking - ellipse for 4:3 ratio portrait, softer top/bottom
+  -webkit-mask-image: radial-gradient(ellipse 50% 50% at center, #000 65%, rgba(0,0,0,0) 100%);
+  mask-image: radial-gradient(ellipse 50% 50% at center, #000 65%, rgba(0,0,0,0) 100%);
+}
+
 // Prism JS Additionals
 .highlight {
   margin: 30px auto;
