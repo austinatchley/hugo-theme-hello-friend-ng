@@ -1,0 +1,398 @@
+// ============================================================
+// _reviews.scss
+// ============================================================
+
+// ── Shared tokens ────────────────────────────────────────────
+// Inherits the site's existing CSS custom properties and SCSS
+// variables (--accent, --background, --color, etc.) from the
+// hello-friend-ng theme. Additional review-specific values:
+
+$review-mono: 'DM Mono', 'Fira Mono', monospace;
+$review-serif: 'DM Serif Display', 'Georgia', serif;
+$review-radius: 6px;
+$review-border: 1px solid var(--border-color, rgba(255,255,255,0.1));
+
+// ── Reviews list page ────────────────────────────────────────
+
+.reviews-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.reviews-header {
+  margin-bottom: 2.5rem;
+  border-bottom: $review-border;
+  padding-bottom: 1.5rem;
+}
+
+.reviews-heading {
+  font-family: $review-serif;
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 400;
+  margin: 0 0 0.5rem;
+  letter-spacing: -0.02em;
+}
+
+.reviews-subhead {
+  font-family: $review-mono;
+  font-size: 0.8rem;
+  opacity: 0.55;
+  margin: 0;
+  letter-spacing: 0.04em;
+}
+
+.reviews-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1.75rem;
+  margin-bottom: 3rem;
+}
+
+.review-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+
+  &:hover .review-card-cover img,
+  &:hover .review-card-cover-placeholder {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+
+  &:hover .review-card-album {
+    color: var(--accent);
+  }
+}
+
+.review-card-cover {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: $review-radius;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+}
+
+.review-card-cover-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  opacity: 0.3;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.review-card-score {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: var(--accent, #04885e);
+  color: #fff;
+  font-family: $review-mono;
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+}
+
+.review-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.review-card-artist {
+  font-family: $review-mono;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  opacity: 0.5;
+}
+
+.review-card-album {
+  font-family: $review-serif;
+  font-size: 1rem;
+  line-height: 1.25;
+  transition: color 0.15s;
+}
+
+.review-card-genre {
+  font-family: $review-mono;
+  font-size: 0.65rem;
+  opacity: 0.4;
+  letter-spacing: 0.04em;
+}
+
+.review-card-date {
+  font-family: $review-mono;
+  font-size: 0.65rem;
+  opacity: 0.35;
+}
+
+// ── Single review page ───────────────────────────────────────
+
+.review-single {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.review-hero {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 2.5rem;
+  align-items: start;
+  margin-bottom: 2.5rem;
+  padding-bottom: 2rem;
+  border-bottom: $review-border;
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+}
+
+.review-cover-wrap {
+  position: sticky;
+  top: 80px;
+
+  @media (max-width: 600px) {
+    position: static;
+    max-width: 240px;
+  }
+}
+
+.review-cover {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: $review-radius;
+  display: block;
+  border: $review-border;
+
+  &--placeholder {
+    background: rgba(255, 255, 255, 0.04);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 4rem;
+    opacity: 0.25;
+  }
+}
+
+.review-genre {
+  font-family: $review-mono;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.45;
+  margin: 0 0 0.4rem;
+}
+
+.review-artist {
+  font-family: $review-serif;
+  font-style: italic;
+  font-size: 1.05rem;
+  opacity: 0.65;
+  margin: 0 0 0.25rem;
+}
+
+.review-album-title {
+  font-family: $review-serif;
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin: 0 0 1.25rem;
+}
+
+.review-stats {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.review-stats li {
+  display: flex;
+  justify-content: space-between;
+  font-family: $review-mono;
+  font-size: 0.75rem;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+
+  &:last-child { border-bottom: none; }
+}
+
+.stat-label {
+  opacity: 0.45;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.stat-value {
+  font-weight: 500;
+}
+
+.review-credits {
+  border-top: $review-border;
+  padding-top: 0.9rem;
+}
+
+.credits-heading {
+  font-family: $review-mono;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  opacity: 0.35;
+  margin: 0 0 0.5rem;
+}
+
+.credit-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+
+  &:last-child { border-bottom: none; }
+}
+
+.credit-role {
+  opacity: 0.5;
+  font-style: italic;
+}
+
+.credit-name {
+  font-weight: 500;
+  font-family: $review-mono;
+  font-size: 0.72rem;
+}
+
+// ── Score + review body ──────────────────────────────────────
+
+.review-body-wrap {
+  max-width: 680px;
+}
+
+.review-score-row {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.review-score {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.score-number {
+  font-family: $review-mono;
+  font-size: 3.5rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--accent, #04885e);
+}
+
+.score-denom {
+  font-family: $review-mono;
+  font-size: 1.1rem;
+  opacity: 0.35;
+}
+
+.score-pips {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.score-pip {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.2);
+
+  &--filled {
+    background: var(--accent, #04885e);
+    border-color: var(--accent, #04885e);
+  }
+}
+
+.review-blurb {
+  font-family: $review-serif;
+  font-style: italic;
+  font-size: 1.2rem;
+  line-height: 1.65;
+  border-left: 3px solid var(--accent, #04885e);
+  padding-left: 1.1rem;
+  margin: 0 0 2rem;
+  opacity: 0.9;
+}
+
+.review-content {
+  font-size: 1rem;
+  line-height: 1.75;
+  opacity: 0.8;
+
+  p {
+    margin-bottom: 1.25rem;
+  }
+}
+
+.review-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: $review-border;
+  font-family: $review-mono;
+  font-size: 0.75rem;
+  opacity: 0.45;
+}
+
+.back-link {
+  text-decoration: none;
+  color: inherit;
+  transition: opacity 0.15s;
+
+  &:hover {
+    opacity: 1;
+    color: var(--accent);
+  }
+}
+
+// ── Light theme overrides ────────────────────────────────────
+// hello-friend-ng uses a [data-theme="light"] or .theme-light selector
+
+body.theme-light,
+[data-theme="light"] {
+  .review-card-cover {
+    background: rgba(0, 0, 0, 0.04);
+  }
+
+  .review-stats li,
+  .credit-row {
+    border-bottom-color: rgba(0, 0, 0, 0.07);
+  }
+
+  .score-pip {
+    border-color: rgba(0, 0, 0, 0.15);
+  }
+}
