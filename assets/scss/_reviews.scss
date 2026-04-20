@@ -2,143 +2,40 @@
 // _reviews.scss
 // ============================================================
 
-// ── Shared tokens ────────────────────────────────────────────
-// Inherits the site's existing CSS custom properties and SCSS
-// variables (--accent, --background, --color, etc.) from the
-// hello-friend-ng theme. Additional review-specific values:
-
 $review-mono: 'DM Mono', 'Fira Mono', monospace;
 $review-serif: 'DM Serif Display', 'Georgia', serif;
 $review-radius: 6px;
 $review-border: 1px solid var(--border-color, rgba(255,255,255,0.1));
 
-// ── Reviews list page ────────────────────────────────────────
+// ── Post list: score badge on review cards ───────────────────
+// Targets whatever element wraps each post in the theme's list.
+// hello-friend-ng uses .posts__item — adjust if your fork differs.
 
-.reviews-page {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 0 1rem;
-}
-
-.reviews-header {
-  margin-bottom: 2.5rem;
-  border-bottom: $review-border;
-  padding-bottom: 1.5rem;
-}
-
-.reviews-heading {
-  font-family: $review-serif;
-  font-size: clamp(2rem, 5vw, 3rem);
-  font-weight: 400;
-  margin: 0 0 0.5rem;
-  letter-spacing: -0.02em;
-}
-
-.reviews-subhead {
-  font-family: $review-mono;
-  font-size: 0.8rem;
-  opacity: 0.55;
-  margin: 0;
-  letter-spacing: 0.04em;
-}
-
-.reviews-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 1.75rem;
-  margin-bottom: 3rem;
-}
-
-.review-card {
-  display: block;
-  text-decoration: none;
-  color: inherit;
-
-  &:hover .review-card-cover img,
-  &:hover .review-card-cover-placeholder {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  }
-
-  &:hover .review-card-album {
-    color: var(--accent);
-  }
-}
-
-.review-card-cover {
+.posts__item {
   position: relative;
-  aspect-ratio: 1;
-  border-radius: $review-radius;
-  overflow: hidden;
-  margin-bottom: 0.75rem;
-  background: rgba(255, 255, 255, 0.04);
-
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-    transition: transform 0.25s ease, box-shadow 0.25s ease;
-  }
 }
 
-.review-card-cover-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
+.review-list-badge {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  font-size: 2.5rem;
-  opacity: 0.3;
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
-}
-
-.review-card-score {
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  background: var(--accent, #04885e);
-  color: #fff;
-  font-family: $review-mono;
-  font-size: 0.7rem;
-  font-weight: 500;
-  padding: 2px 7px;
-  border-radius: 4px;
-  letter-spacing: 0.03em;
-}
-
-.review-card-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.review-card-artist {
+  gap: 6px;
   font-family: $review-mono;
   font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  opacity: 0.5;
-}
-
-.review-card-album {
-  font-family: $review-serif;
-  font-size: 1rem;
-  line-height: 1.25;
-  transition: color 0.15s;
-}
-
-.review-card-genre {
-  font-family: $review-mono;
-  font-size: 0.65rem;
-  opacity: 0.4;
   letter-spacing: 0.04em;
-}
+  margin-top: 4px;
+  opacity: 0.75;
 
-.review-card-date {
-  font-family: $review-mono;
-  font-size: 0.65rem;
-  opacity: 0.35;
+  .review-list-score {
+    background: var(--accent, #04885e);
+    color: #fff;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-weight: 500;
+  }
+
+  .review-list-artist {
+    opacity: 0.6;
+  }
 }
 
 // ── Single review page ───────────────────────────────────────
@@ -283,7 +180,7 @@ $review-border: 1px solid var(--border-color, rgba(255,255,255,0.1));
   font-size: 0.72rem;
 }
 
-// ── Score + review body ──────────────────────────────────────
+// ── Score + body ─────────────────────────────────────────────
 
 .review-body-wrap {
   max-width: 680px;
@@ -350,9 +247,7 @@ $review-border: 1px solid var(--border-color, rgba(255,255,255,0.1));
   line-height: 1.75;
   opacity: 0.8;
 
-  p {
-    margin-bottom: 1.25rem;
-  }
+  p { margin-bottom: 1.25rem; }
 }
 
 .review-footer {
@@ -379,20 +274,15 @@ $review-border: 1px solid var(--border-color, rgba(255,255,255,0.1));
 }
 
 // ── Light theme overrides ────────────────────────────────────
-// hello-friend-ng uses a [data-theme="light"] or .theme-light selector
 
 body.theme-light,
 [data-theme="light"] {
-  .review-card-cover {
-    background: rgba(0, 0, 0, 0.04);
-  }
-
   .review-stats li,
   .credit-row {
-    border-bottom-color: rgba(0, 0, 0, 0.07);
+    border-bottom-color: rgba(0,0,0,0.07);
   }
 
   .score-pip {
-    border-color: rgba(0, 0, 0, 0.15);
+    border-color: rgba(0,0,0,0.15);
   }
 }
