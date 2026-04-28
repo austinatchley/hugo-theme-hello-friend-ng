@@ -22,10 +22,12 @@
 
   // Three independently drifting bands. yFrac is where the band centres
   // as a fraction of viewport height; amplitude is how much it wanders.
+  // accentHue: a warm colour that bleeds in at certain gradient segments.
   var BANDS = [
-    { hue: 188, speed: 0.26, yFrac: 0.15, amp: 0.07 },
-    { hue: 210, speed: 0.18, yFrac: 0.48, amp: 0.06 },
-    { hue: 168, speed: 0.22, yFrac: 0.78, amp: 0.08 },
+    { hue: 188, speed: 0.26, xSpeed: 1.1, yFrac: 0.10, amp: 0.06, accentHue: 38  },  // amber
+    { hue: 210, speed: 0.18, xSpeed: 0.8, yFrac: 0.37, amp: 0.05, accentHue: 315 },  // magenta-pink
+    { hue: 168, speed: 0.22, xSpeed: 1.3, yFrac: 0.63, amp: 0.07, accentHue: 42  },  // gold
+    { hue: 195, speed: 0.21, xSpeed: 0.9, yFrac: 0.88, amp: 0.06, accentHue: 38  },  // amber
   ];
 
   function drawAurora() {
@@ -39,11 +41,18 @@
 
       var grad = ctx.createLinearGradient(0, 0, W, 0);
       for (var s = 0; s <= segments; s++) {
-        var x     = s / segments;
-        var phase = x * Math.PI * 2.8 + t * band.speed;
-        var v     = Math.sin(phase) * 0.5 + 0.5;
-        var hue   = band.hue + Math.sin(phase * 0.6) * 18;
-        grad.addColorStop(x, 'hsla(' + hue + ',65%,55%,' + (v * 0.07) + ')');
+        var x      = s / segments;
+        var phase  = x * Math.PI * 2.8 + t * band.xSpeed;
+        var v      = Math.sin(phase) * 0.5 + 0.5;
+        var hue    = band.hue + Math.sin(phase * 0.18) * 18;
+        // Accent blend: a slow independent wave decides how much warm hue leaks in.
+        var accent   = Math.sin(x * Math.PI * 1.4 + t * band.xSpeed * 0.4 + b * 1.7) * 0.5 + 0.5;
+        var finalHue = hue + (band.accentHue - hue) * accent * 0.65;
+        // Accented segments get higher saturation + slightly higher alpha so they
+        // survive the screen blend against the dark background.
+        var finalSat   = 65  + accent * 25;          // 65–90%
+        var finalAlpha = v * (0.07 + accent * 0.06); // up to 0.13 at accent peak
+        grad.addColorStop(x, 'hsla(' + finalHue + ',' + finalSat + '%,60%,' + finalAlpha + ')');
       }
 
       ctx.fillStyle = grad;

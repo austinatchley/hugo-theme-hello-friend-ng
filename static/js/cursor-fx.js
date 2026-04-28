@@ -74,15 +74,19 @@
 
     ctx.clearRect(0, 0, W, H);
 
-    // Cursor rings
+    // Cursor rings — gold near centre, teal as they expand
     if (mx > 0) {
       for (var i = 0; i < RING_COUNT; i++) {
         var phase  = ((t / RING_PERIOD) + i / RING_COUNT) % 1;
         var radius = phase * 75;
         var alpha  = (1 - phase) * 0.18;
+        // phase 0 = just born (small, gold); phase 1 = dying (large, teal)
+        var hue    = 48 + phase * (185 - 48);   // 48 gold → 185 teal
+        var sat    = 100 + phase * (80 - 100);  // 100% → 80%
+        var lum    = 78  + phase * (70 - 78);   // 78% → 70%
         ctx.beginPath();
         ctx.arc(mx, my, radius, 0, Math.PI * 2);
-        ctx.strokeStyle = 'hsla(185,80%,70%,' + alpha + ')';
+        ctx.strokeStyle = 'hsla(' + hue + ',' + sat + '%,' + lum + '%,' + alpha + ')';
         ctx.lineWidth = 1;
         ctx.stroke();
       }

@@ -13,8 +13,8 @@
   z-index: -1;
   display: block;
   pointer-events: none;
-  filter: blur(2px);
-  opacity: 0.6;
+  filter: blur(6px);
+  opacity: 0.5;
 }
 
 // body must be transparent so the canvas behind it shows through.
@@ -25,6 +25,17 @@ body.crt-page {
 
 html:has(body.crt-page) {
   background-color: #15202b;
+}
+
+// ── Particle field canvas (above aurora, below page content) ─────────────────
+#particle-field {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
 }
 
 // ── Global cursor halo ────────────────────────────────────────────────────────
