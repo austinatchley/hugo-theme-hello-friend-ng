@@ -22,12 +22,25 @@
 
   // Three independently drifting bands. yFrac is where the band centres
   // as a fraction of viewport height; amplitude is how much it wanders.
-  // accentHue: a warm colour that bleeds in at certain gradient segments.
+  // Shared hue spectrum all bands sample from. Values are hue degrees; the
+  // sampler interpolates between stops so transitions are smooth.
+  var SPECTRUM = [168, 188, 210, 240, 315, 38, 42, 168];
+
+  function sampleSpectrum(pos) {
+    // pos is 0–1, wraps. Returns interpolated hue.
+    var scaled = ((pos % 1) + 1) % 1;  // ensure 0–1
+    var n      = SPECTRUM.length - 1;
+    var idx    = scaled * n;
+    var lo     = Math.floor(idx);
+    var frac   = idx - lo;
+    return SPECTRUM[lo] + (SPECTRUM[lo + 1] - SPECTRUM[lo]) * frac;
+  }
+
   var BANDS = [
-    { hue: 188, speed: 0.26, xSpeed: 1.1, yFrac: 0.10, amp: 0.06, accentHue: 38  },  // amber
-    { hue: 210, speed: 0.18, xSpeed: 0.8, yFrac: 0.37, amp: 0.05, accentHue: 315 },  // magenta-pink
-    { hue: 168, speed: 0.22, xSpeed: 1.3, yFrac: 0.63, amp: 0.07, accentHue: 42  },  // gold
-    { hue: 195, speed: 0.21, xSpeed: 0.9, yFrac: 0.88, amp: 0.06, accentHue: 38  },  // amber
+    { speed: 0.26, xSpeed: 1.1, yFrac: 0.10, amp: 0.06, offset: Math.random() },
+    { speed: 0.18, xSpeed: 0.8, yFrac: 0.37, amp: 0.05, offset: Math.random() },
+    { speed: 0.22, xSpeed: 1.3, yFrac: 0.63, amp: 0.07, offset: Math.random() },
+    { speed: 0.21, xSpeed: 0.9, yFrac: 0.88, amp: 0.06, offset: Math.random() },
   ];
 
   function drawAurora() {
@@ -37,26 +50,32 @@
     for (var b = 0; b < BANDS.length; b++) {
       var band = BANDS[b];
       var centreY = H * (band.yFrac + Math.sin(t * band.speed * 0.7 + b * 2.3) * band.amp);
-      var bandH   = H * 0.24;
+      var bandH   = H * 0.36;
 
-      var grad = ctx.createLinearGradient(0, 0, W, 0);
-      for (var s = 0; s <= segments; s++) {
-        var x      = s / segments;
-        var phase  = x * Math.PI * 2.8 + t * band.xSpeed;
+      var top = centreY - bandH / 2;
+
+      // Horizontal colour gradient — one strip per segment column.
+      for (var s = 0; s < segments; s++) {
+        var x0     = (s / segments) * W;
+        var x1     = ((s + 1) / segments) * W;
+        var xMid   = (s + 0.5) / segments;
+        var phase  = xMid * Math.PI * 2.8 + t * band.xSpeed;
         var v      = Math.sin(phase) * 0.5 + 0.5;
-        var hue    = band.hue + Math.sin(phase * 0.18) * 18;
-        // Accent blend: a slow independent wave decides how much warm hue leaks in.
-        var accent   = Math.sin(x * Math.PI * 1.4 + t * band.xSpeed * 0.4 + b * 1.7) * 0.5 + 0.5;
-        var finalHue = hue + (band.accentHue - hue) * accent * 0.65;
-        // Accented segments get higher saturation + slightly higher alpha so they
-        // survive the screen blend against the dark background.
-        var finalSat   = 65  + accent * 25;          // 65–90%
-        var finalAlpha = v * (0.07 + accent * 0.06); // up to 0.13 at accent peak
-        grad.addColorStop(x, 'hsla(' + finalHue + ',' + finalSat + '%,60%,' + finalAlpha + ')');
-      }
+        var specPos  = (phase * 0.18 / (Math.PI * 2) + band.offset) % 1;
+        var finalHue = sampleSpectrum(specPos);
+        var finalSat = 65 + v * 25;
+        var peakAlpha = v * 0.13;
 
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, centreY - bandH / 2, W, bandH);
+        // Vertical fade: transparent → full at centre → transparent.
+        var vGrad = ctx.createLinearGradient(0, top, 0, top + bandH);
+        vGrad.addColorStop(0,    'hsla(' + finalHue + ',' + finalSat + '%,60%,0)');
+        vGrad.addColorStop(0.35, 'hsla(' + finalHue + ',' + finalSat + '%,60%,' + peakAlpha + ')');
+        vGrad.addColorStop(0.65, 'hsla(' + finalHue + ',' + finalSat + '%,60%,' + peakAlpha + ')');
+        vGrad.addColorStop(1,    'hsla(' + finalHue + ',' + finalSat + '%,60%,0)');
+
+        ctx.fillStyle = vGrad;
+        ctx.fillRect(x0, top, x1 - x0, bandH);
+      }
     }
     ctx.globalCompositeOperation = 'source-over';
   }
