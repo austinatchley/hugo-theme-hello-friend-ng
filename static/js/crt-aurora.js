@@ -16,43 +16,7 @@
   let raf;
   let lastTime = null;
 
-  // ── Cursor ────────────────────────────────────────────────────────────────
-
-  const mouse = { x: -9999, y: -9999 };
-
-  window.addEventListener('mousemove', function (e) {
-    mouse.x = e.clientX;
-    mouse.y = e.clientY;
-  });
-
-  window.addEventListener('mouseleave', function () {
-    mouse.x = -9999;
-    mouse.y = -9999;
-  });
-
-  // ── Click ripples ─────────────────────────────────────────────────────────
-
-  var rings = [];
-  var MAX_RINGS = 8;
-
-  window.addEventListener('click', function (e) {
-    if (rings.length >= MAX_RINGS) rings.shift();
-    rings.push({ x: e.clientX, y: e.clientY, born: t });
-  });
-
-  function drawRings() {
-    var LIFE = 1.4;
-    for (var i = rings.length - 1; i >= 0; i--) {
-      var ring = rings[i];
-      var progress = (t - ring.born) / LIFE;
-      if (progress >= 1) { rings.splice(i, 1); continue; }
-      ctx.beginPath();
-      ctx.arc(ring.x, ring.y, progress * 90, 0, Math.PI * 2);
-      ctx.strokeStyle = 'hsla(185,75%,65%,' + ((1 - progress) * 0.4) + ')';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-    }
-  }
+  // Cursor rings and click ripples are handled globally by cursor-fx.js.
 
   // ── Aurora bands ──────────────────────────────────────────────────────────
 
@@ -86,38 +50,6 @@
       ctx.fillRect(0, centreY - bandH / 2, W, bandH);
     }
     ctx.globalCompositeOperation = 'source-over';
-  }
-
-  // ── Cursor halo ───────────────────────────────────────────────────────────
-
-  var RING_PERIOD = 1.8;
-  var RING_COUNT  = 3;
-
-  function drawCursorHalo() {
-    if (mouse.x < 0) return;
-
-    // Soft glow
-    ctx.globalCompositeOperation = 'screen';
-    var grd = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, 120);
-    grd.addColorStop(0, 'hsla(185,80%,60%,0.07)');
-    grd.addColorStop(1, 'hsla(185,80%,60%,0)');
-    ctx.fillStyle = grd;
-    ctx.beginPath();
-    ctx.arc(mouse.x, mouse.y, 120, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalCompositeOperation = 'source-over';
-
-    // Concentric rings emanating outward
-    for (var i = 0; i < RING_COUNT; i++) {
-      var phase  = ((t / RING_PERIOD) + i / RING_COUNT) % 1;
-      var radius = phase * 75;
-      var alpha  = (1 - phase) * 0.16;
-      ctx.beginPath();
-      ctx.arc(mouse.x, mouse.y, radius, 0, Math.PI * 2);
-      ctx.strokeStyle = 'hsla(185,80%,70%,' + alpha + ')';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
   }
 
   // ── Scanlines ─────────────────────────────────────────────────────────────
@@ -189,8 +121,6 @@
     ctx.fillRect(0, 0, W, H);
 
     drawAurora();
-    drawCursorHalo();
-    drawRings();
     drawScanlines();
     maybeGlitch(dt);
   }
