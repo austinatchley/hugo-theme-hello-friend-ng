@@ -45,10 +45,9 @@
     my = e.clientY;
   });
 
-  window.addEventListener('mouseleave', function () {
-    mx = -9999;
-    my = -9999;
-  });
+  // Intentionally no mouseleave handler — particles stay repelled from the
+  // last known cursor position so they react to the rings even when the
+  // mouse is still.
 
   // ── Particle definitions ──────────────────────────────────────────────────
 
