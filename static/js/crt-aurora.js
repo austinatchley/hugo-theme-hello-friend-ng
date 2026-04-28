@@ -178,8 +178,8 @@
 
     ctx.clearRect(0, 0, W, H);
 
-    // Base background — matches the theme's dark body colour
-    ctx.fillStyle = '#1a1a2e';
+    // Base background — matches $dark-background in _variables.scss
+    ctx.fillStyle = '#15202b';
     ctx.fillRect(0, 0, W, H);
 
     drawAurora();

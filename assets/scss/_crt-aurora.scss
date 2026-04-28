@@ -10,23 +10,17 @@
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 0;
+  z-index: -1;
   display: block;
-  pointer-events: none; // clicks fall through to links and buttons below
+  pointer-events: none;
 }
 
-// Anything that should sit above the canvas needs z-index > 0.
-// hello-friend-ng's .container, header, and footer are all in normal flow,
-// so a single rule on the wrapper is enough.
-.wrapper {
-  position: relative;
-  z-index: 1;
+// body must be transparent so the canvas behind it shows through.
+// html also needs a background so browsers don't paint white behind the canvas.
+body.crt-page {
+  background-color: transparent !important;
 }
 
-// The theme renders header and footer outside .wrapper in some layouts.
-// Add them here too so they're always clickable.
-header.header,
-footer.footer {
-  position: relative;
-  z-index: 1;
+html:has(body.crt-page) {
+  background-color: #15202b;
 }
