@@ -67,6 +67,7 @@
   function drawAurora() {
     var segments = 14;
 
+    ctx.globalCompositeOperation = 'screen';
     for (var b = 0; b < BANDS.length; b++) {
       var band = BANDS[b];
       var centreY = H * (band.yFrac + Math.sin(t * band.speed * 0.7 + b * 2.3) * band.amp);
@@ -78,12 +79,13 @@
         var phase = x * Math.PI * 2.8 + t * band.speed;
         var v     = Math.sin(phase) * 0.5 + 0.5;
         var hue   = band.hue + Math.sin(phase * 0.6) * 18;
-        grad.addColorStop(x, 'hsla(' + hue + ',65%,45%,' + (v * 0.10) + ')');
+        grad.addColorStop(x, 'hsla(' + hue + ',65%,55%,' + (v * 0.07) + ')');
       }
 
       ctx.fillStyle = grad;
       ctx.fillRect(0, centreY - bandH / 2, W, bandH);
     }
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   // ── Cursor halo ───────────────────────────────────────────────────────────
@@ -95,19 +97,21 @@
     if (mouse.x < 0) return;
 
     // Soft glow
-    var grd = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, 100);
-    grd.addColorStop(0, 'hsla(185,80%,60%,0.09)');
+    ctx.globalCompositeOperation = 'screen';
+    var grd = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, 120);
+    grd.addColorStop(0, 'hsla(185,80%,60%,0.07)');
     grd.addColorStop(1, 'hsla(185,80%,60%,0)');
     ctx.fillStyle = grd;
     ctx.beginPath();
-    ctx.arc(mouse.x, mouse.y, 100, 0, Math.PI * 2);
+    ctx.arc(mouse.x, mouse.y, 120, 0, Math.PI * 2);
     ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
 
     // Concentric rings emanating outward
     for (var i = 0; i < RING_COUNT; i++) {
       var phase  = ((t / RING_PERIOD) + i / RING_COUNT) % 1;
       var radius = phase * 75;
-      var alpha  = (1 - phase) * 0.22;
+      var alpha  = (1 - phase) * 0.16;
       ctx.beginPath();
       ctx.arc(mouse.x, mouse.y, radius, 0, Math.PI * 2);
       ctx.strokeStyle = 'hsla(185,80%,70%,' + alpha + ')';
@@ -119,17 +123,19 @@
   // ── Scanlines ─────────────────────────────────────────────────────────────
 
   function drawScanlines() {
-    // Static dark stripes every 3px
-    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    // multiply darkens only the stripe rows, preserving the colour underneath
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
     for (var y = 0; y < H; y += 3) {
       ctx.fillRect(0, y, W, 1);
     }
+    ctx.globalCompositeOperation = 'source-over';
 
     // Slow vertical roll — a faint lighter band drifting downward
     var rollY = ((t * 38) % (H + 100)) - 50;
     var rollGrad = ctx.createLinearGradient(0, rollY, 0, rollY + 100);
     rollGrad.addColorStop(0,   'rgba(255,255,255,0)');
-    rollGrad.addColorStop(0.5, 'rgba(255,255,255,0.022)');
+    rollGrad.addColorStop(0.5, 'rgba(255,255,255,0.015)');
     rollGrad.addColorStop(1,   'rgba(255,255,255,0)');
     ctx.fillStyle = rollGrad;
     ctx.fillRect(0, rollY, W, 100);
