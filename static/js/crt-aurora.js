@@ -10,7 +10,7 @@
   const canvas = document.getElementById('crt-aurora');
   if (!canvas) return;
 
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   let W, H;
   let t = 0;
   let raf;

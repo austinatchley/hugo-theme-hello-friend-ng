@@ -32,6 +32,8 @@
     if (mx === -9999) { hx = e.clientX; hy = e.clientY; }
     mx = e.clientX;
     my = e.clientY;
+    // console.log("{hx: " + hx + ", hy: " + hy);
+    // console.log("{mx: " + mx + ", my: " + my);
   });
 
   window.addEventListener('pointerleave', function () {
@@ -41,7 +43,7 @@
 
   // ── Click ripples ─────────────────────────────────────────────────────────
   var ripples = [];
-  var MAX_RIPPLES = 6;
+  var MAX_RIPPLES = 7;
 
   window.addEventListener('click', function (e) {
     if (ripples.length >= MAX_RIPPLES) ripples.shift();
@@ -62,7 +64,7 @@
   function draw(now) {
     raf = requestAnimationFrame(draw);
     if (!lastTime) lastTime = now;
-    var dt = Math.min((now - lastTime) / 1000, 1);
+    var dt = Math.min((now - lastTime) / 1000, .05);
     lastTime = now;
     t += dt;
 
