@@ -28,15 +28,15 @@
 
   function lerp(a, b, t) { return a + (b - a) * t; }
 
-  window.addEventListener('mousemove', function (e) {
+  window.addEventListener('pointermove', function updateMouse(e) {
     if (mx === -9999) { hx = e.clientX; hy = e.clientY; }
     mx = e.clientX;
     my = e.clientY;
   });
 
-  window.addEventListener('mouseleave', function () {
-    // mx = -9999; my = -9999;
-    // halo.style.transform = 'translate(-9999px,-9999px)';
+  window.addEventListener('pointerleave', function () {
+    mx = -9999; my = -9999;
+    halo.style.transform = 'translate(-9999px,-9999px)';
   });
 
   // ── Click ripples ─────────────────────────────────────────────────────────
@@ -81,14 +81,16 @@
         var phase  = ((t / RING_PERIOD) + i / RING_COUNT) % 1;
         var radius = phase * 75;
         var alpha  = (1 - phase) * 0.18;
+
         // phase 0 = just born (small, gold); phase 1 = dying (large, teal)
         var hue    = 48 + phase * (185 - 48);   // 48 gold → 185 teal
         var sat    = 100 + phase * (80 - 100);  // 100% → 80%
         var lum    = 78  + phase * (70 - 78);   // 78% → 70%
+
         ctx.beginPath();
         ctx.arc(mx, my, radius, 0, Math.PI * 2);
         ctx.strokeStyle = 'hsla(' + hue + ',' + sat + '%,' + lum + '%,' + alpha + ')';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1.25;
         ctx.stroke();
       }
     }
