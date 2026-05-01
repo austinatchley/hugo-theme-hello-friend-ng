@@ -50,7 +50,7 @@ html:has(body.crt-page) {
   border-radius: 50%;
   pointer-events: none;
   z-index: 9999;
-  mix-blend-mode: hard-light;
+  mix-blend-mode: normal;
   background: radial-gradient(
     circle,
     hsla(185, 80%, 60%, 0.06) 0%,
@@ -69,4 +69,5 @@ html:has(body.crt-page) {
   height: 100%;
   pointer-events: none;
   z-index: 9998;
+  opacity: 50%;
 }
