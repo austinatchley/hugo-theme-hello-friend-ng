@@ -19,7 +19,7 @@
   var resizeTimer;
   window.addEventListener('resize', function () {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(resize, 120);
+    resizeTimer = setTimeout(resize, 40);
   });
 
   // ── Mouse tracking ────────────────────────────────────────────────────────
@@ -35,13 +35,13 @@
   });
 
   window.addEventListener('mouseleave', function () {
-    mx = -9999; my = -9999;
-    halo.style.transform = 'translate(-9999px,-9999px)';
+    // mx = -9999; my = -9999;
+    // halo.style.transform = 'translate(-9999px,-9999px)';
   });
 
   // ── Click ripples ─────────────────────────────────────────────────────────
   var ripples = [];
-  var MAX_RIPPLES = 8;
+  var MAX_RIPPLES = 6;
 
   window.addEventListener('click', function (e) {
     if (ripples.length >= MAX_RIPPLES) ripples.shift();
@@ -52,6 +52,7 @@
   var t = 0;
   var lastTime = null;
   var raf = null;
+  const LINEAR_INTERPOLOATION_COEFFICIENT = 0.25;
 
   // ── Draw ──────────────────────────────────────────────────────────────────
   var RING_PERIOD = 1.8;
@@ -61,14 +62,14 @@
   function draw(now) {
     raf = requestAnimationFrame(draw);
     if (!lastTime) lastTime = now;
-    var dt = Math.min((now - lastTime) / 1000, 0.05);
+    var dt = Math.min((now - lastTime) / 1000, 1);
     lastTime = now;
     t += dt;
 
     // Lerp halo div
     if (mx !== -9999) {
-      hx = lerp(hx, mx, 0.12);
-      hy = lerp(hy, my, 0.12);
+      hx = lerp(hx, mx, LINEAR_INTERPOLOATION_COEFFICIENT);
+      hy = lerp(hy, my, LINEAR_INTERPOLOATION_COEFFICIENT);
       halo.style.transform = 'translate(' + (hx - 150) + 'px,' + (hy - 150) + 'px)';
     }
 
