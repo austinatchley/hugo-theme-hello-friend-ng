@@ -13,7 +13,7 @@
     210,
     240,
     315,
-    38,
+    350,
     42,
     168
   ];
@@ -119,7 +119,7 @@
       { speed: 0.21, xSpeed: 0.9, yFrac: 0.88, amp: 0.06, offset: Math.random() }
     ];
     function drawAurora() {
-      const segments = 14;
+      const segments = 20;
       const bandH = H * 0.36;
       ctx.globalCompositeOperation = "screen";
       for (let b = 0; b < BANDS.length; b++) {

@@ -2,10 +2,10 @@ import { wrap01 } from "./math.js";
 
 /**
  * Shared hue spectrum (degrees) that all aurora bands sample from.
- * teal → cyan → blue → violet → magenta → amber → gold → (wraps to teal).
+ * teal → cyan → blue → violet → magenta → deep-red → gold → (wraps to teal).
  */
 export const SPECTRUM: readonly number[] = [
-  168, 188, 210, 240, 315, 38, 42, 168,
+  168, 188, 210, 240, 315, 350, 42, 168,
 ];
 
 /**

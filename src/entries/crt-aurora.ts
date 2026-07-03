@@ -41,7 +41,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   ];
 
   function drawAurora(): void {
-    const segments = 14;
+    const segments = 20;
     const bandH = H * 0.36;
 
     ctx!.globalCompositeOperation = "screen";
