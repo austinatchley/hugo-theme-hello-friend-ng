@@ -454,8 +454,8 @@
         ctx.fillRect(0, 0, W, H);
         drawAurora(ctx);
         if (QP.scanlinesEnabled) drawScanlines(ctx);
+        if (QP.ditherEnabled) drawDither();
       }
-      if (QP.ditherEnabled) drawDither();
       if (QP.glitchEnabled) maybeGlitch(dt);
       meter.record(performance.now() - workStart);
       if (frameCount % 60 === 0) checkFrameBudget();
