@@ -40,34 +40,59 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     { speed: 0.21, xSpeed: 0.9, yFrac: 0.88, amp: 0.06, offset: Math.random() },
   ];
 
+  // Cache the vertical mask gradient — only recreate when band height changes.
+  let lastMaskH = 0;
+  let maskGrad: CanvasGradient | null = null;
+  function ensureMaskGrad(h: number): CanvasGradient {
+    if (h !== lastMaskH || !maskGrad) {
+      maskGrad = ctx!.createLinearGradient(0, 0, 0, h);
+      maskGrad.addColorStop(0, "rgba(255,255,255,0)");
+      maskGrad.addColorStop(0.35, "rgba(255,255,255,1)");
+      maskGrad.addColorStop(0.65, "rgba(255,255,255,1)");
+      maskGrad.addColorStop(1, "rgba(255,255,255,0)");
+      lastMaskH = h;
+    }
+    return maskGrad;
+  }
+
   function drawAurora(): void {
     const segments = 14;
     const bandH = H * 0.36;
+    const ceilBandH = Math.ceil(bandH);
+    const vMask = ensureMaskGrad(ceilBandH);
 
     ctx!.globalCompositeOperation = "screen";
     for (let b = 0; b < BANDS.length; b++) {
       const band = BANDS[b];
       const centreY = H * (band.yFrac + Math.sin(t * band.speed * 0.7 + b * 2.3) * band.amp);
       const top = centreY - bandH / 2;
-      const bottom = top + bandH;
 
-      // Horizontal colour gradient — one strip per segment column.
+      // Save: clip to band area so destination-in doesn't leak into
+      // background or adjacent bands.
+      ctx!.save();
+      ctx!.beginPath();
+      ctx!.rect(0, top, W, bandH);
+      ctx!.clip();
+
+      // One horizontal gradient across the full band width.
+      const hGrad = ctx!.createLinearGradient(0, top, W, top);
       for (let s = 0; s < segments; s++) {
-        const x0 = (s / segments) * W;
-        const x1 = ((s + 1) / segments) * W;
         const xMid = (s + 0.5) / segments;
         const col = auroraColumn(xMid, band.xSpeed, band.offset, t);
-
-        // Vertical fade: transparent → full at centre → transparent.
-        const vGrad = ctx!.createLinearGradient(0, top, 0, bottom);
-        vGrad.addColorStop(0, col.edge);
-        vGrad.addColorStop(0.35, col.peak);
-        vGrad.addColorStop(0.65, col.peak);
-        vGrad.addColorStop(1, col.edge);
-
-        ctx!.fillStyle = vGrad;
-        ctx!.fillRect(x0, top, x1 - x0, bandH);
+        hGrad.addColorStop(s / segments, col.peak);
       }
+      hGrad.addColorStop(1, auroraColumn(1, band.xSpeed, band.offset, t).peak);
+
+      ctx!.fillStyle = hGrad;
+      ctx!.fillRect(0, top, W, bandH);
+
+      // Vertical fade via destination-in (clipped to band area only).
+      ctx!.globalCompositeOperation = "destination-in";
+      ctx!.fillStyle = vMask;
+      ctx!.fillRect(0, top, W, bandH);
+
+      ctx!.restore();
+      // ctx restored to screen compositing for next band
     }
     ctx!.globalCompositeOperation = "source-over";
   }
@@ -227,4 +252,5 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   // Expose for Playwright perf harness (machine-readable JSON, not DOM text).
   (window as any).__auroraMeter = meter;
   (window as any).__scanlineMode = scanlineMode;
+  (window as any).__resetAuroraMeter = () => meter.reset();
 })();

@@ -50,6 +50,10 @@
       this.samples.push(ms);
       if (this.samples.length > this.capacity) this.samples.shift();
     }
+    /** Discard all recorded samples (used by the perf harness warmup). */
+    reset() {
+      this.samples.length = 0;
+    }
     /** Number of recorded samples currently in the window. */
     size() {
       return this.samples.length;
@@ -114,28 +118,46 @@
       { speed: 0.22, xSpeed: 1.3, yFrac: 0.63, amp: 0.07, offset: Math.random() },
       { speed: 0.21, xSpeed: 0.9, yFrac: 0.88, amp: 0.06, offset: Math.random() }
     ];
+    let lastMaskH = 0;
+    let maskGrad = null;
+    function ensureMaskGrad(h) {
+      if (h !== lastMaskH || !maskGrad) {
+        maskGrad = ctx.createLinearGradient(0, 0, 0, h);
+        maskGrad.addColorStop(0, "rgba(255,255,255,0)");
+        maskGrad.addColorStop(0.35, "rgba(255,255,255,1)");
+        maskGrad.addColorStop(0.65, "rgba(255,255,255,1)");
+        maskGrad.addColorStop(1, "rgba(255,255,255,0)");
+        lastMaskH = h;
+      }
+      return maskGrad;
+    }
     function drawAurora() {
       const segments = 14;
       const bandH = H * 0.36;
+      const ceilBandH = Math.ceil(bandH);
+      const vMask = ensureMaskGrad(ceilBandH);
       ctx.globalCompositeOperation = "screen";
       for (let b = 0; b < BANDS.length; b++) {
         const band = BANDS[b];
         const centreY = H * (band.yFrac + Math.sin(t * band.speed * 0.7 + b * 2.3) * band.amp);
         const top = centreY - bandH / 2;
-        const bottom = top + bandH;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, top, W, bandH);
+        ctx.clip();
+        const hGrad = ctx.createLinearGradient(0, top, W, top);
         for (let s = 0; s < segments; s++) {
-          const x0 = s / segments * W;
-          const x1 = (s + 1) / segments * W;
           const xMid = (s + 0.5) / segments;
           const col = auroraColumn(xMid, band.xSpeed, band.offset, t);
-          const vGrad = ctx.createLinearGradient(0, top, 0, bottom);
-          vGrad.addColorStop(0, col.edge);
-          vGrad.addColorStop(0.35, col.peak);
-          vGrad.addColorStop(0.65, col.peak);
-          vGrad.addColorStop(1, col.edge);
-          ctx.fillStyle = vGrad;
-          ctx.fillRect(x0, top, x1 - x0, bandH);
+          hGrad.addColorStop(s / segments, col.peak);
         }
+        hGrad.addColorStop(1, auroraColumn(1, band.xSpeed, band.offset, t).peak);
+        ctx.fillStyle = hGrad;
+        ctx.fillRect(0, top, W, bandH);
+        ctx.globalCompositeOperation = "destination-in";
+        ctx.fillStyle = vMask;
+        ctx.fillRect(0, top, W, bandH);
+        ctx.restore();
       }
       ctx.globalCompositeOperation = "source-over";
     }
@@ -248,5 +270,6 @@
     requestAnimationFrame(loop);
     window.__auroraMeter = meter;
     window.__scanlineMode = scanlineMode;
+    window.__resetAuroraMeter = () => meter.reset();
   })();
 })();

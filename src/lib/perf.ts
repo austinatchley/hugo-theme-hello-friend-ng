@@ -34,6 +34,11 @@ export class FrameMeter {
     if (this.samples.length > this.capacity) this.samples.shift();
   }
 
+  /** Discard all recorded samples (used by the perf harness warmup). */
+  reset(): void {
+    this.samples.length = 0;
+  }
+
   /** Number of recorded samples currently in the window. */
   size(): number {
     return this.samples.length;
