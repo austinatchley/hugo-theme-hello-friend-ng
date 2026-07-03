@@ -30,7 +30,7 @@
     const v = Math.sin(phase) * 0.5 + 0.5;
     const specPos = (phase * 0.18 / (Math.PI * 2) + offset) % 1;
     const finalHue = sampleSpectrum(specPos);
-    const finalSat = 65 + v * 25;
+    const finalSat = 70 + v * 25;
     const peakAlpha = v * 0.13;
     const prefix = "hsla(" + finalHue + "," + finalSat + "%,60%,";
     return {
