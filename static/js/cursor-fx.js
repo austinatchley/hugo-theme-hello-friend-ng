@@ -2,6 +2,7 @@
   // ── Halo div (CSS radial gradient, mix-blend-mode: screen) ────────────────
   var halo = document.createElement('div');
   halo.id = 'cursor-halo';
+  halo.style.transform = 'translate(-9999px,-9999px)';
   document.body.appendChild(halo);
 
   // ── Overlay canvas (rings + click ripples) ────────────────────────────────
