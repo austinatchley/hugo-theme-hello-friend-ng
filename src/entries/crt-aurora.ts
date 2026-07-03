@@ -499,7 +499,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   requestAnimationFrame(loop);
 
   // Expose for Playwright perf harness (machine-readable JSON, not DOM text).
-  (window as any).__auroraMeter = meter;
-  (window as any).__scanlineMode = scanlineMode;
-  (window as any).__resetAuroraMeter = () => meter.reset();
+  window.__auroraMeter = meter;
+  window.__scanlineMode = scanlineMode;
+  window.__resetAuroraMeter = () => meter.reset();
 })();
