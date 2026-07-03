@@ -1,6 +1,6 @@
 /**
- * crt-aurora — CRT scanline + aurora background. Loaded with `defer` only on
- * the home page via layouts/partials/extra-head.html.
+ * crt-aurora — CRT scanline + aurora background. Loaded with `defer` on every
+ * page via layouts/partials/extra-head.html.
  */
 import { auroraColumn } from "../lib/spectrum.js";
 import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
