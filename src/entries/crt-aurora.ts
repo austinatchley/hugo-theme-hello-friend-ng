@@ -155,8 +155,10 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   }
 
   // ── State persistence ────────────────────────────────────────────────────────
-  // Save band offsets and current time so the animation is seamless across page
-  // navigations. Cleared on full page reload (Cmd+R / F5).
+  // Save band offsets, animation time, and quality so the animation is seamless
+  // across page navigations. On restore, advance t by the elapsed wall-clock
+  // time so the animation picks up exactly where it left off.
+  // Cleared on full page reload (Cmd+R / F5).
   function restoreAuroraState(): void {
     try {
       const nav = performance.getEntriesByType("navigation")[0] as
@@ -174,7 +176,13 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     const saved = localStorage.getItem(AURORA_STORAGE_KEY);
     if (saved) {
       try {
-        const state = JSON.parse(saved) as { offsets: number[]; phaseOffsets: number[]; time: number };
+        const state = JSON.parse(saved) as {
+          offsets: number[];
+          phaseOffsets: number[];
+          time: number;
+          savedAt: number;
+          quality?: Quality;
+        };
         const offsets = state.offsets;
         const phaseOffsets = state.phaseOffsets;
         for (let i = 0; i < CFG.bands.length && i < offsets.length; i++) {
@@ -183,7 +191,12 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
         for (let i = 0; i < CFG.bands.length && i < phaseOffsets.length; i++) {
           CFG.bands[i].phaseOffset = phaseOffsets[i];
         }
-        t = state.time || 0;
+        const elapsed = (Date.now() - (state.savedAt || Date.now())) / 1000;
+        t = (state.time || 0) + Math.max(0, elapsed);
+        if (state.quality && QUALITY_ORDER.indexOf(state.quality) >= 0) {
+          currentQuality = state.quality;
+          QP = { ...QUALITY_PRESETS[currentQuality] };
+        }
         return;
       } catch {
         /* corrupt state */
@@ -207,6 +220,8 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
         offsets: CFG.bands.map(b => b.offset),
         phaseOffsets: CFG.bands.map(b => b.phaseOffset),
         time: t,
+        savedAt: Date.now(),
+        quality: currentQuality,
       };
       localStorage.setItem(AURORA_STORAGE_KEY, JSON.stringify(state));
     } catch {

@@ -212,7 +212,12 @@
           for (let i = 0; i < CFG.bands.length && i < phaseOffsets.length; i++) {
             CFG.bands[i].phaseOffset = phaseOffsets[i];
           }
-          t = state.time || 0;
+          const elapsed = (Date.now() - (state.savedAt || Date.now())) / 1e3;
+          t = (state.time || 0) + Math.max(0, elapsed);
+          if (state.quality && QUALITY_ORDER.indexOf(state.quality) >= 0) {
+            currentQuality = state.quality;
+            QP = { ...QUALITY_PRESETS[currentQuality] };
+          }
           return;
         } catch {
           localStorage.removeItem(AURORA_STORAGE_KEY);
@@ -231,7 +236,9 @@
         const state = {
           offsets: CFG.bands.map((b) => b.offset),
           phaseOffsets: CFG.bands.map((b) => b.phaseOffset),
-          time: t
+          time: t,
+          savedAt: Date.now(),
+          quality: currentQuality
         };
         localStorage.setItem(AURORA_STORAGE_KEY, JSON.stringify(state));
       } catch {
