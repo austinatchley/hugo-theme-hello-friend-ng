@@ -36,3 +36,7 @@ Temporary Items
 
 # customize Headers whiteout touch git submodule.
 layouts/partials/extra-head.html
+
+# Node / TypeScript toolchain (sources in src/, outputs committed)
+node_modules/
+*.tsbuildinfo

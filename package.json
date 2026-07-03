@@ -1,0 +1,21 @@
+{
+  "name": "hello-friend-ng-scripts",
+  "version": "1.0.0",
+  "description": "TypeScript sources for the hello-friend-ng theme animations and boilerplate. Compiled outputs are committed to static/js and assets/js.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run typecheck && npm run test && npm run build"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "jsdom": "^25.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
