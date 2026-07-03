@@ -394,9 +394,9 @@
           d[i] = newR;
           d[i + 1] = newG;
           d[i + 2] = newB;
-          const errR = (oldR - newR) * 0.3;
-          const errG = (oldG - newG) * 0.3;
-          const errB = (oldB - newB) * 0.3;
+          const errR = (oldR - newR) * 0.25;
+          const errG = (oldG - newG) * 0.25;
+          const errB = (oldB - newB) * 0.25;
           if (x + 1 < W) {
             const ri = i + 4;
             d[ri] += errR * 7 / 16;

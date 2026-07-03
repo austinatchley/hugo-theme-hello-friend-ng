@@ -447,9 +447,9 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
         d[i + 1] = newG;
         d[i + 2] = newB;
 
-        const errR = (oldR - newR) * 0.3;
-        const errG = (oldG - newG) * 0.3;
-        const errB = (oldB - newB) * 0.3;
+        const errR = (oldR - newR) * 0.25;
+        const errG = (oldG - newG) * 0.25;
+        const errB = (oldB - newB) * 0.25;
 
         // Right (7/16)
         if (x + 1 < W) {
