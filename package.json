@@ -11,11 +11,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "bench": "node --expose-gc bench.mjs",
+    "perf": "node perf.mjs",
     "check": "npm run typecheck && npm run test && npm run build"
   },
   "devDependencies": {
     "esbuild": "^0.24.0",
     "jsdom": "^25.0.0",
+    "playwright": "^1.61.1",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   }

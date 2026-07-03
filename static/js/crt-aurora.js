@@ -139,7 +139,7 @@
       }
       ctx.globalCompositeOperation = "source-over";
     }
-    let scanlineMode = "pattern";
+    let scanlineMode = "rows";
     try {
       const m = new URLSearchParams(location.search).get("scanlines");
       if (m === "rows" || m === "pattern") scanlineMode = m;
@@ -215,15 +215,15 @@
       const dt = Math.min((now - lastTime) / 1e3, 0.05);
       lastTime = now;
       t += dt;
-      const workStart = hudOn ? performance.now() : 0;
+      const workStart = performance.now();
       ctx.clearRect(0, 0, W, H);
       ctx.fillStyle = "#15202b";
       ctx.fillRect(0, 0, W, H);
       drawAurora();
       drawScanlines();
       maybeGlitch(dt);
+      meter.record(performance.now() - workStart);
       if (hudOn && hud) {
-        meter.record(performance.now() - workStart);
         hudCooldown -= dt;
         if (hudCooldown <= 0) {
           hudCooldown = 0.25;
@@ -246,5 +246,7 @@
     resize();
     buildScanlinePattern();
     requestAnimationFrame(loop);
+    window.__auroraMeter = meter;
+    window.__scanlineMode = scanlineMode;
   })();
 })();

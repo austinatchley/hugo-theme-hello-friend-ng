@@ -79,7 +79,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   // On a CPU-backed canvas (willReadFrequently) the pattern fill touches every
   // pixel while "rows" touches only 1/3 of them, so "rows" can be faster there.
   // Selectable via ?scanlines=rows|pattern for live A/B measurement.
-  let scanlineMode: "pattern" | "rows" = "pattern";
+  let scanlineMode: "pattern" | "rows" = "rows";
   try {
     const m = new URLSearchParams(location.search).get("scanlines");
     if (m === "rows" || m === "pattern") scanlineMode = m;
@@ -180,7 +180,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     lastTime = now;
     t += dt;
 
-    const workStart = hudOn ? performance.now() : 0;
+    const workStart = performance.now();
 
     ctx!.clearRect(0, 0, W, H);
 
@@ -192,8 +192,9 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     drawScanlines();
     maybeGlitch(dt);
 
+    meter.record(performance.now() - workStart);
+
     if (hudOn && hud) {
-      meter.record(performance.now() - workStart);
       hudCooldown -= dt;
       if (hudCooldown <= 0) {
         hudCooldown = 0.25; // refresh HUD text ~4×/sec
@@ -222,4 +223,8 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   resize();
   buildScanlinePattern();
   requestAnimationFrame(loop);
+
+  // Expose for Playwright perf harness (machine-readable JSON, not DOM text).
+  (window as any).__auroraMeter = meter;
+  (window as any).__scanlineMode = scanlineMode;
 })();
