@@ -228,20 +228,17 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     ctx!.globalCompositeOperation = "source-over";
   }
 
-  // ── Noise overlay ───────────────────────────────────────────────────────────
-  // A static noise texture composited at very low opacity to break up synthetic
-  // edges and give the aurora a slight organic texture. Generated once then
-  // reused every frame.
-  let noiseCanvas: HTMLCanvasElement | null = null;
-
-  function ensureNoise(): HTMLCanvasElement {
-    if (noiseCanvas) return noiseCanvas;
-    noiseCanvas = document.createElement("canvas");
+  // ── Noise overlay (CSS) ─────────────────────────────────────────────────────
+  // A fixed div with a pre-generated noise PNG as background-image, composited
+  // by the browser's GPU layer. Zero per-frame JS cost.
+  function injectNoiseOverlay(): void {
+    // Generate noise PNG once as a base64 data URL
+    const nc = document.createElement("canvas");
     const nw = CFG.noiseTileSize;
     const nh = CFG.noiseTileSize;
-    noiseCanvas.width = nw;
-    noiseCanvas.height = nh;
-    const nctx = noiseCanvas.getContext("2d")!;
+    nc.width = nw;
+    nc.height = nh;
+    const nctx = nc.getContext("2d")!;
     const img = nctx.createImageData(nw, nh);
     const d = img.data;
     for (let i = 0; i < d.length; i += 4) {
@@ -249,25 +246,20 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
       d[i] = v;
       d[i + 1] = v;
       d[i + 2] = v;
-      d[i + 3] = 30 + Math.random() * 40; // subtle alpha
+      d[i + 3] = 30 + Math.random() * 40;
     }
     nctx.putImageData(img, 0, 0);
-    return noiseCanvas;
-  }
+    const dataUrl = nc.toDataURL("image/png");
 
-  function drawNoise(): void {
-    const nc = ensureNoise();
-    ctx!.globalCompositeOperation = "overlay";
-    ctx!.globalAlpha = CFG.noiseOpacity;
-    ctx!.imageSmoothingEnabled = false;
-    for (let y = 0; y < H; y += nc.height) {
-      for (let x = 0; x < W; x += nc.width) {
-        ctx!.drawImage(nc, x, y);
-      }
-    }
-    ctx!.globalAlpha = 1;
-    ctx!.imageSmoothingEnabled = true;
-    ctx!.globalCompositeOperation = "source-over";
+    const div = document.createElement("div");
+    div.style.cssText =
+      "position:fixed;inset:0;z-index:900;pointer-events:none;" +
+      "background-image:url('" + dataUrl + "');" +
+      "background-repeat:repeat;" +
+      "background-size:" + nw + "px " + nh + "px;" +
+      "opacity:" + CFG.noiseOpacity + ";" +
+      "mix-blend-mode:overlay;";
+    document.body.appendChild(div);
   }
 
   // ── Scanlines ─────────────────────────────────────────────────────────────
@@ -387,7 +379,6 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     ctx!.fillRect(0, 0, W, H);
 
     drawAurora();
-    drawNoise();
     drawScanlines();
     maybeGlitch(dt);
 
@@ -425,6 +416,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   // ── Boot ──────────────────────────────────────────────────────────────────
   resize();
   restoreAuroraState();
+  injectNoiseOverlay();
   buildScanlinePattern();
   requestAnimationFrame(loop);
 
