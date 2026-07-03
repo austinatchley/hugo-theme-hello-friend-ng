@@ -90,9 +90,9 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     glitchEnabled: boolean;
     ditherEnabled: boolean;
   }> = {
-    high:   { bandCount: 6, segments: 20, noiseEnabled: true,  scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: true },
-    medium: { bandCount: 4, segments: 14, noiseEnabled: false, scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: true },
-    low:    { bandCount: 2, segments: 10, noiseEnabled: false, scanlinesEnabled: false, glitchEnabled: false, ditherEnabled: true },
+    high:   { bandCount: 6, segments: 20, noiseEnabled: true,  scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: false },
+    medium: { bandCount: 4, segments: 14, noiseEnabled: false, scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: false },
+    low:    { bandCount: 2, segments: 10, noiseEnabled: false, scanlinesEnabled: false, glitchEnabled: false, ditherEnabled: false },
   };
 
   // Build config with URL param overrides
@@ -422,72 +422,6 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     c.fillRect(0, rollY, W, CFG.rollHeight);
   }
 
-  // ── Floyd-Steinberg error diffusion dithering (8-bit 3-3-2) ──────────────
-  function drawDither(): void {
-    const data = ctx!.getImageData(0, 0, W, H);
-    const d = data.data;
-
-    const rStep = 255 / 7;
-    const gStep = 255 / 7;
-    const bStep = 255 / 3;
-
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        const i = (y * W + x) * 4;
-
-        const oldR = d[i];
-        const oldG = d[i + 1];
-        const oldB = d[i + 2];
-
-        const newR = Math.round(oldR / rStep) * rStep;
-        const newG = Math.round(oldG / gStep) * gStep;
-        const newB = Math.round(oldB / bStep) * bStep;
-
-        d[i]     = newR;
-        d[i + 1] = newG;
-        d[i + 2] = newB;
-
-        const errR = (oldR - newR) * 0.25;
-        const errG = (oldG - newG) * 0.25;
-        const errB = (oldB - newB) * 0.25;
-
-        // Right (7/16)
-        if (x + 1 < W) {
-          const ri = i + 4;
-          d[ri]     += errR * 7 / 16;
-          d[ri + 1] += errG * 7 / 16;
-          d[ri + 2] += errB * 7 / 16;
-        }
-
-        // Down-left (3/16)
-        if (x > 0 && y + 1 < H) {
-          const li = i + W * 4 - 4;
-          d[li]     += errR * 3 / 16;
-          d[li + 1] += errG * 3 / 16;
-          d[li + 2] += errB * 3 / 16;
-        }
-
-        // Down (5/16)
-        if (y + 1 < H) {
-          const di = i + W * 4;
-          d[di]     += errR * 5 / 16;
-          d[di + 1] += errG * 5 / 16;
-          d[di + 2] += errB * 5 / 16;
-        }
-
-        // Down-right (1/16)
-        if (x + 1 < W && y + 1 < H) {
-          const ri = i + W * 4 + 4;
-          d[ri]     += errR * 1 / 16;
-          d[ri + 1] += errG * 1 / 16;
-          d[ri + 2] += errB * 1 / 16;
-        }
-      }
-    }
-
-    ctx!.putImageData(data, 0, 0);
-  }
-
   // ── Horizontal glitch ─────────────────────────────────────────────────────
   let glitchCooldown = 4;
 
@@ -549,16 +483,14 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
 
     const workStart = performance.now();
 
-    // Throttle aurora to 30fps (every other vblank) so cursor-fx gets more
-    // main-thread time. On skip frames we leave the previous frame's pixels in
-    // place — only the glitch still runs.
+    // Cap aurora render to ~30fps (every other vblank) so cursor-fx gets more
+    // main-thread time. Skip frames still run the glitch effect.
     if (frameCount % 2 === 0) {
       ctx!.clearRect(0, 0, W, H);
       ctx!.fillStyle = CFG.backgroundColor;
       ctx!.fillRect(0, 0, W, H);
       drawAurora(ctx!);
       if (QP.scanlinesEnabled) drawScanlines(ctx!);
-      if (QP.ditherEnabled) drawDither();
     }
     if (QP.glitchEnabled) maybeGlitch(dt);
 
