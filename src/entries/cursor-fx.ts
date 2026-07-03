@@ -49,7 +49,7 @@ import {
   let hy = -9999;
 
   // How aggressively the halo chases the cursor each frame (0–1).
-  const HALO_LERP = 0.25;
+  const HALO_LERP = 0.31;
 
   window.addEventListener("pointermove", function (e) {
     if (mx === -9999) {

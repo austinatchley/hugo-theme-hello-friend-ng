@@ -63,7 +63,7 @@
     let my = -9999;
     let hx = -9999;
     let hy = -9999;
-    const HALO_LERP = 0.25;
+    const HALO_LERP = 0.31;
     window.addEventListener("pointermove", function(e) {
       if (mx === -9999) {
         hx = e.clientX;

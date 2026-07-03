@@ -151,7 +151,7 @@
         return v !== null ? parseInt(v, 10) : fallback;
       };
       const getStr = (key, fallback) => params.get(key) ?? fallback;
-      const bands = DEFAULT_BANDS.map((b) => ({ ...b, offset: 0 }));
+      const bands = DEFAULT_BANDS.map((b) => ({ ...b, offset: 0, phaseOffset: 0 }));
       return {
         bands,
         segments: getInt("segments", QUALITY_PRESETS[QUALITY].segments),
@@ -205,8 +205,12 @@
         try {
           const state = JSON.parse(saved);
           const offsets = state.offsets;
+          const phaseOffsets = state.phaseOffsets;
           for (let i = 0; i < CFG.bands.length && i < offsets.length; i++) {
             CFG.bands[i].offset = offsets[i];
+          }
+          for (let i = 0; i < CFG.bands.length && i < phaseOffsets.length; i++) {
+            CFG.bands[i].phaseOffset = phaseOffsets[i];
           }
           t = state.time || 0;
           return;
@@ -219,12 +223,14 @@
     function randomizeOffsets() {
       for (const band of CFG.bands) {
         band.offset = Math.random();
+        band.phaseOffset = Math.random() * Math.PI * 2;
       }
     }
     function saveAuroraState() {
       try {
         const state = {
           offsets: CFG.bands.map((b) => b.offset),
+          phaseOffsets: CFG.bands.map((b) => b.phaseOffset),
           time: t
         };
         localStorage.setItem(AURORA_STORAGE_KEY, JSON.stringify(state));
@@ -236,36 +242,36 @@
     for (let i = 0; i < BANDS.length; i++) {
       vGradCache.push({ top: -9999, gradient: ctx.createLinearGradient(0, 0, 0, 1) });
     }
-    function drawAurora() {
+    function drawAurora(c) {
       const segments = QP.segments;
       const bandCount = Math.min(QP.bandCount, BANDS.length);
       const bandH = H * CFG.bandHeight;
-      ctx.globalCompositeOperation = "source-over";
-      ctx.globalAlpha = 0.69;
+      c.globalCompositeOperation = "source-over";
+      c.globalAlpha = 0.69;
       for (let b = 0; b < bandCount; b++) {
         const band = BANDS[b];
-        const yJitter = Math.sin(t * CFG.yJitterSpeed + b * 1.7) * CFG.yJitterAmp;
-        const centreY = H * (band.yFrac + yJitter + Math.sin(t * band.speed * 0.7 + b * 2.3) * band.amp);
+        const yJitter = Math.sin(t * CFG.yJitterSpeed + band.phaseOffset) * CFG.yJitterAmp;
+        const centreY = H * (band.yFrac + yJitter + Math.sin(t * band.speed * 0.7 + band.phaseOffset * 1.353) * band.amp);
         const top = centreY - bandH / 2;
         const bottom = top + bandH;
         const stops = [];
         for (let s = 0; s < segments; s++) {
           const base = s / segments;
-          const jitter = Math.sin(t * CFG.segmentJitterSpeed + s * 1.1 + b * 0.9) * CFG.segmentJitterAmp;
+          const jitter = Math.sin(t * CFG.segmentJitterSpeed + s * 1.1 + band.phaseOffset * 0.692) * CFG.segmentJitterAmp;
           const pos = Math.max(0, Math.min(1, base + jitter));
           const xMid = (pos + (s + 0.5) / segments) / 2;
           const col = auroraColumn(xMid, band.xSpeed, band.offset, t);
           stops.push({ pos, col: col.peak });
         }
         stops.push({ pos: 1, col: auroraColumn(1, band.xSpeed, band.offset, t).peak });
-        const hGrad = ctx.createLinearGradient(0, top, W, top);
+        const hGrad = c.createLinearGradient(0, top, W, top);
         for (const st of stops) {
           hGrad.addColorStop(st.pos, st.col);
         }
         const cached = vGradCache[b];
         let vGrad;
         if (Math.abs(cached.top - top) > 1) {
-          vGrad = ctx.createLinearGradient(0, top, 0, bottom);
+          vGrad = c.createLinearGradient(0, top, 0, bottom);
           vGrad.addColorStop(0, "rgba(255,255,255,0)");
           vGrad.addColorStop(0.3, "rgba(255,255,255,1)");
           vGrad.addColorStop(0.7, "rgba(255,255,255,1)");
@@ -277,31 +283,31 @@
         }
         const waveAmp = bandH * 0.048;
         const waveFreq = 2e-3;
-        const wavePhase = t * 0.3 + b * 1.3;
+        const wavePhase = t * 0.3 + band.phaseOffset;
         const steps = Math.ceil(W / 8);
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(0, top + Math.sin(0 + wavePhase) * waveAmp);
+        c.save();
+        c.beginPath();
+        c.moveTo(0, top + Math.sin(0 + wavePhase) * waveAmp);
         for (let i = 1; i <= steps; i++) {
           const x = i / steps * W;
           const wave = Math.sin(x * waveFreq + wavePhase) * waveAmp;
-          ctx.lineTo(x, top + wave);
+          c.lineTo(x, top + wave);
         }
         for (let i = steps; i >= 0; i--) {
           const x = i / steps * W;
           const wave = Math.sin(x * waveFreq + wavePhase) * waveAmp;
-          ctx.lineTo(x, bottom + wave);
+          c.lineTo(x, bottom + wave);
         }
-        ctx.closePath();
-        ctx.clip();
-        ctx.fillStyle = hGrad;
-        ctx.fillRect(0, top, W, bandH);
-        ctx.globalCompositeOperation = "destination-in";
-        ctx.fillStyle = vGrad;
-        ctx.fillRect(0, top, W, bandH);
-        ctx.restore();
+        c.closePath();
+        c.clip();
+        c.fillStyle = hGrad;
+        c.fillRect(0, top, W, bandH);
+        c.globalCompositeOperation = "destination-in";
+        c.fillStyle = vGrad;
+        c.fillRect(0, top, W, bandH);
+        c.restore();
       }
-      ctx.globalAlpha = 1;
+      c.globalAlpha = 1;
     }
     function injectNoiseOverlay() {
       if (!QP.noiseEnabled) return;
@@ -333,7 +339,7 @@
     } catch {
     }
     let scanlinePattern = null;
-    function buildScanlinePattern() {
+    function buildScanlinePattern(c) {
       const tile = document.createElement("canvas");
       tile.width = 1;
       tile.height = CFG.scanlineSpacing;
@@ -341,27 +347,27 @@
       if (!tctx) return;
       tctx.fillStyle = "rgba(0,0,0," + CFG.scanlineOpacity + ")";
       tctx.fillRect(0, 0, 1, 1);
-      scanlinePattern = ctx.createPattern(tile, "repeat");
+      scanlinePattern = c.createPattern(tile, "repeat");
     }
-    function drawScanlines() {
-      ctx.globalCompositeOperation = "multiply";
+    function drawScanlines(c) {
+      c.globalCompositeOperation = "multiply";
       if (scanlineMode === "pattern" && scanlinePattern) {
-        ctx.fillStyle = scanlinePattern;
-        ctx.fillRect(0, 0, W, H);
+        c.fillStyle = scanlinePattern;
+        c.fillRect(0, 0, W, H);
       } else {
-        ctx.fillStyle = "rgba(0,0,0," + CFG.scanlineOpacity + ")";
+        c.fillStyle = "rgba(0,0,0," + CFG.scanlineOpacity + ")";
         for (let y = 0; y < H; y += CFG.scanlineSpacing) {
-          ctx.fillRect(0, y, W, 1);
+          c.fillRect(0, y, W, 1);
         }
       }
-      ctx.globalCompositeOperation = "source-over";
+      c.globalCompositeOperation = "source-over";
       const rollY = t * CFG.rollSpeed % (H + 100) - 50;
-      const rollGrad = ctx.createLinearGradient(0, rollY, 0, rollY + CFG.rollHeight);
+      const rollGrad = c.createLinearGradient(0, rollY, 0, rollY + CFG.rollHeight);
       rollGrad.addColorStop(0, "rgba(255,255,255,0)");
       rollGrad.addColorStop(0.5, "rgba(255,255,255,0.015)");
       rollGrad.addColorStop(1, "rgba(255,255,255,0)");
-      ctx.fillStyle = rollGrad;
-      ctx.fillRect(0, rollY, W, CFG.rollHeight);
+      c.fillStyle = rollGrad;
+      c.fillRect(0, rollY, W, CFG.rollHeight);
     }
     let glitchCooldown = 4;
     function maybeGlitch(dt) {
@@ -405,11 +411,13 @@
       t += dt;
       frameCount++;
       const workStart = performance.now();
-      ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = CFG.backgroundColor;
-      ctx.fillRect(0, 0, W, H);
-      drawAurora();
-      if (QP.scanlinesEnabled) drawScanlines();
+      if (frameCount % 2 === 0) {
+        ctx.clearRect(0, 0, W, H);
+        ctx.fillStyle = CFG.backgroundColor;
+        ctx.fillRect(0, 0, W, H);
+        drawAurora(ctx);
+        if (QP.scanlinesEnabled) drawScanlines(ctx);
+      }
       if (QP.glitchEnabled) maybeGlitch(dt);
       meter.record(performance.now() - workStart);
       if (frameCount % 60 === 0) checkFrameBudget();
@@ -437,7 +445,7 @@
     resize();
     restoreAuroraState();
     injectNoiseOverlay();
-    buildScanlinePattern();
+    buildScanlinePattern(ctx);
     requestAnimationFrame(loop);
     window.__auroraMeter = meter;
     window.__scanlineMode = scanlineMode;

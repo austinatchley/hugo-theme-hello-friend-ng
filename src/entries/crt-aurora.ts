@@ -49,8 +49,8 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     backgroundColor: string;
   }
 
-  // Default band definitions (offsets randomized on init)
-  const DEFAULT_BANDS: Omit<Band, "offset">[] = [
+  // Default band definitions (phaseOffsets randomized on init)
+  const DEFAULT_BANDS: Omit<Band, "offset" | "phaseOffset">[] = [
     { speed: 0.26, xSpeed: 1.6, yFrac: 0.08, amp: 0.06 },
     { speed: 0.18, xSpeed: 1.2, yFrac: 0.26, amp: 0.05 },
     { speed: 0.22, xSpeed: 1.9, yFrac: 0.44, amp: 0.07 },
@@ -108,7 +108,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     const getStr = (key: string, fallback: string) => params.get(key) ?? fallback;
 
     // Offsets are set later (restore or randomize)
-    const bands: Band[] = DEFAULT_BANDS.map(b => ({ ...b, offset: 0 }));
+    const bands: Band[] = DEFAULT_BANDS.map(b => ({ ...b, offset: 0, phaseOffset: 0 }));
 
     return {
       bands,
@@ -173,10 +173,14 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     const saved = localStorage.getItem(AURORA_STORAGE_KEY);
     if (saved) {
       try {
-        const state = JSON.parse(saved) as { offsets: number[]; time: number };
+        const state = JSON.parse(saved) as { offsets: number[]; phaseOffsets: number[]; time: number };
         const offsets = state.offsets;
+        const phaseOffsets = state.phaseOffsets;
         for (let i = 0; i < CFG.bands.length && i < offsets.length; i++) {
           CFG.bands[i].offset = offsets[i];
+        }
+        for (let i = 0; i < CFG.bands.length && i < phaseOffsets.length; i++) {
+          CFG.bands[i].phaseOffset = phaseOffsets[i];
         }
         t = state.time || 0;
         return;
@@ -192,6 +196,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   function randomizeOffsets(): void {
     for (const band of CFG.bands) {
       band.offset = Math.random();
+      band.phaseOffset = Math.random() * Math.PI * 2;
     }
   }
 
@@ -199,6 +204,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     try {
       const state = {
         offsets: CFG.bands.map(b => b.offset),
+        phaseOffsets: CFG.bands.map(b => b.phaseOffset),
         time: t,
       };
       localStorage.setItem(AURORA_STORAGE_KEY, JSON.stringify(state));
@@ -214,6 +220,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     yFrac: number;
     amp: number;
     offset: number;
+    phaseOffset: number;
   }
 
   const BANDS = CFG.bands;
@@ -226,19 +233,19 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     vGradCache.push({ top: -9999, gradient: ctx!.createLinearGradient(0, 0, 0, 1) });
   }
 
-  function drawAurora(): void {
+  function drawAurora(c: CanvasRenderingContext2D): void {
     const segments = QP.segments;
     const bandCount = Math.min(QP.bandCount, BANDS.length);
     const bandH = H * CFG.bandHeight;
 
-    ctx!.globalCompositeOperation = "source-over";
-    ctx!.globalAlpha = 0.69;
+    c.globalCompositeOperation = "source-over";
+    c.globalAlpha = 0.69;
     for (let b = 0; b < bandCount; b++) {
       const band = BANDS[b];
 
-      // Y-jitter: slow sine wobble so seams aren't static straight lines.
-      const yJitter = Math.sin(t * CFG.yJitterSpeed + b * 1.7) * CFG.yJitterAmp;
-      const centreY = H * (band.yFrac + yJitter + Math.sin(t * band.speed * 0.7 + b * 2.3) * band.amp);
+        // Y-jitter: slow sine wobble so seams aren't static straight lines.
+      const yJitter = Math.sin(t * CFG.yJitterSpeed + band.phaseOffset) * CFG.yJitterAmp;
+      const centreY = H * (band.yFrac + yJitter + Math.sin(t * band.speed * 0.7 + band.phaseOffset * 1.353) * band.amp);
       const top = centreY - bandH / 2;
       const bottom = top + bandH;
 
@@ -247,7 +254,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
       const stops: { pos: number; col: string }[] = [];
       for (let s = 0; s < segments; s++) {
         const base = s / segments;
-        const jitter = Math.sin(t * CFG.segmentJitterSpeed + s * 1.1 + b * 0.9) * CFG.segmentJitterAmp;
+        const jitter = Math.sin(t * CFG.segmentJitterSpeed + s * 1.1 + band.phaseOffset * 0.692) * CFG.segmentJitterAmp;
         const pos = Math.max(0, Math.min(1, base + jitter));
         const xMid = (pos + (s + 0.5) / segments) / 2;
         const col = auroraColumn(xMid, band.xSpeed, band.offset, t);
@@ -256,7 +263,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
       // Final stop at 1
       stops.push({ pos: 1, col: auroraColumn(1, band.xSpeed, band.offset, t).peak });
 
-      const hGrad = ctx!.createLinearGradient(0, top, W, top);
+      const hGrad = c.createLinearGradient(0, top, W, top);
       for (const st of stops) {
         hGrad.addColorStop(st.pos, st.col);
       }
@@ -266,7 +273,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
       const cached = vGradCache[b];
       let vGrad: CanvasGradient;
       if (Math.abs(cached.top - top) > 1) {
-        vGrad = ctx!.createLinearGradient(0, top, 0, bottom);
+        vGrad = c.createLinearGradient(0, top, 0, bottom);
         vGrad.addColorStop(0, "rgba(255,255,255,0)");
         vGrad.addColorStop(0.3, "rgba(255,255,255,1)");
         vGrad.addColorStop(0.7, "rgba(255,255,255,1)");
@@ -282,34 +289,34 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
       // straight horizontal fade lines.
       const waveAmp = bandH * 0.048;
       const waveFreq = 0.002;
-      const wavePhase = t * 0.3 + b * 1.3;
+      const wavePhase = t * 0.3 + band.phaseOffset;
       const steps = Math.ceil(W / 8);
-      ctx!.save();
-      ctx!.beginPath();
-      ctx!.moveTo(0, top + Math.sin(0 + wavePhase) * waveAmp);
+      c.save();
+      c.beginPath();
+      c.moveTo(0, top + Math.sin(0 + wavePhase) * waveAmp);
       for (let i = 1; i <= steps; i++) {
         const x = (i / steps) * W;
         const wave = Math.sin(x * waveFreq + wavePhase) * waveAmp;
-        ctx!.lineTo(x, top + wave);
+        c.lineTo(x, top + wave);
       }
       for (let i = steps; i >= 0; i--) {
         const x = (i / steps) * W;
         const wave = Math.sin(x * waveFreq + wavePhase) * waveAmp;
-        ctx!.lineTo(x, bottom + wave);
+        c.lineTo(x, bottom + wave);
       }
-      ctx!.closePath();
-      ctx!.clip();
+      c.closePath();
+      c.clip();
 
-      ctx!.fillStyle = hGrad;
-      ctx!.fillRect(0, top, W, bandH);
+      c.fillStyle = hGrad;
+      c.fillRect(0, top, W, bandH);
 
-      ctx!.globalCompositeOperation = "destination-in";
-      ctx!.fillStyle = vGrad;
-      ctx!.fillRect(0, top, W, bandH);
+      c.globalCompositeOperation = "destination-in";
+      c.fillStyle = vGrad;
+      c.fillRect(0, top, W, bandH);
 
-      ctx!.restore();
+      c.restore();
     }
-    ctx!.globalAlpha = 1;
+    c.globalAlpha = 1;
   }
 
   // ── Noise overlay (CSS) ─────────────────────────────────────────────────────
@@ -364,7 +371,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
 
   let scanlinePattern: CanvasPattern | null = null;
 
-  function buildScanlinePattern(): void {
+  function buildScanlinePattern(c: CanvasRenderingContext2D): void {
     const tile = document.createElement("canvas");
     tile.width = 1;
     tile.height = CFG.scanlineSpacing;
@@ -372,31 +379,31 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     if (!tctx) return;
     tctx.fillStyle = "rgba(0,0,0," + CFG.scanlineOpacity + ")";
     tctx.fillRect(0, 0, 1, 1); // dark row; remaining rows stay transparent
-    scanlinePattern = ctx!.createPattern(tile, "repeat");
+    scanlinePattern = c.createPattern(tile, "repeat");
   }
 
-  function drawScanlines(): void {
+  function drawScanlines(c: CanvasRenderingContext2D): void {
     // multiply darkens only the stripe rows, preserving the colour underneath
-    ctx!.globalCompositeOperation = "multiply";
+    c.globalCompositeOperation = "multiply";
     if (scanlineMode === "pattern" && scanlinePattern) {
-      ctx!.fillStyle = scanlinePattern;
-      ctx!.fillRect(0, 0, W, H);
+      c.fillStyle = scanlinePattern;
+      c.fillRect(0, 0, W, H);
     } else {
-      ctx!.fillStyle = "rgba(0,0,0," + CFG.scanlineOpacity + ")";
+      c.fillStyle = "rgba(0,0,0," + CFG.scanlineOpacity + ")";
       for (let y = 0; y < H; y += CFG.scanlineSpacing) {
-        ctx!.fillRect(0, y, W, 1);
+        c.fillRect(0, y, W, 1);
       }
     }
-    ctx!.globalCompositeOperation = "source-over";
+    c.globalCompositeOperation = "source-over";
 
     // Slow vertical roll — a faint lighter band drifting downward.
     const rollY = ((t * CFG.rollSpeed) % (H + 100)) - 50;
-    const rollGrad = ctx!.createLinearGradient(0, rollY, 0, rollY + CFG.rollHeight);
+    const rollGrad = c.createLinearGradient(0, rollY, 0, rollY + CFG.rollHeight);
     rollGrad.addColorStop(0, "rgba(255,255,255,0)");
     rollGrad.addColorStop(0.5, "rgba(255,255,255,0.015)");
     rollGrad.addColorStop(1, "rgba(255,255,255,0)");
-    ctx!.fillStyle = rollGrad;
-    ctx!.fillRect(0, rollY, W, CFG.rollHeight);
+    c.fillStyle = rollGrad;
+    c.fillRect(0, rollY, W, CFG.rollHeight);
   }
 
   // ── Horizontal glitch ─────────────────────────────────────────────────────
@@ -460,14 +467,16 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
 
     const workStart = performance.now();
 
-    ctx!.clearRect(0, 0, W, H);
-
-    // Base background — matches $dark-background in _variables.scss.
-    ctx!.fillStyle = CFG.backgroundColor;
-    ctx!.fillRect(0, 0, W, H);
-
-    drawAurora();
-    if (QP.scanlinesEnabled) drawScanlines();
+    // Throttle aurora to 30fps (every other vblank) so cursor-fx gets more
+    // main-thread time. On skip frames we leave the previous frame's pixels in
+    // place — only the glitch still runs.
+    if (frameCount % 2 === 0) {
+      ctx!.clearRect(0, 0, W, H);
+      ctx!.fillStyle = CFG.backgroundColor;
+      ctx!.fillRect(0, 0, W, H);
+      drawAurora(ctx!);
+      if (QP.scanlinesEnabled) drawScanlines(ctx!);
+    }
     if (QP.glitchEnabled) maybeGlitch(dt);
 
     meter.record(performance.now() - workStart);
@@ -508,7 +517,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   resize();
   restoreAuroraState();
   injectNoiseOverlay();
-  buildScanlinePattern();
+  buildScanlinePattern(ctx!);
   requestAnimationFrame(loop);
 
   // Expose for Playwright perf harness (machine-readable JSON, not DOM text).
