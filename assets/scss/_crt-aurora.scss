@@ -27,11 +27,11 @@ html:has(body.crt-page) {
   background-color: #15202b;
 }
 
-// Semi-transparent container so the aurora subtly glows through the content
-// area, while flexbox centering gaps (visible on mobile between header and
-// post body) don't expose the raw canvas.
+// Near-opaque container — fills flexbox centering gaps between header and
+// content on mobile (where the raw canvas would otherwise peek through) while
+// still allowing a whisper of aurora glow through the content area.
 body.crt-page .container {
-  background: rgba(21, 32, 43, 0.85);
+  background: rgba(21, 32, 43, 0.92);
 }
 
 // ── Particle field canvas (above aurora, below page content) ─────────────────
