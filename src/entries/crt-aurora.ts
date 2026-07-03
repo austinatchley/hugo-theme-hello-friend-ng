@@ -40,41 +40,18 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     { speed: 0.21, xSpeed: 0.9, yFrac: 0.88, amp: 0.06, offset: Math.random() },
   ];
 
-  // Cache the vertical mask gradient — only recreate when band height changes.
-  let lastMaskH = 0;
-  let maskGrad: CanvasGradient | null = null;
-  function ensureMaskGrad(h: number): CanvasGradient {
-    if (h !== lastMaskH || !maskGrad) {
-      maskGrad = ctx!.createLinearGradient(0, 0, 0, h);
-      maskGrad.addColorStop(0, "rgba(255,255,255,0)");
-      maskGrad.addColorStop(0.35, "rgba(255,255,255,1)");
-      maskGrad.addColorStop(0.65, "rgba(255,255,255,1)");
-      maskGrad.addColorStop(1, "rgba(255,255,255,0)");
-      lastMaskH = h;
-    }
-    return maskGrad;
-  }
-
   function drawAurora(): void {
     const segments = 14;
     const bandH = H * 0.36;
-    const ceilBandH = Math.ceil(bandH);
-    const vMask = ensureMaskGrad(ceilBandH);
 
     ctx!.globalCompositeOperation = "screen";
     for (let b = 0; b < BANDS.length; b++) {
       const band = BANDS[b];
       const centreY = H * (band.yFrac + Math.sin(t * band.speed * 0.7 + b * 2.3) * band.amp);
       const top = centreY - bandH / 2;
+      const bottom = top + bandH;
 
-      // Save: clip to band area so destination-in doesn't leak into
-      // background or adjacent bands.
-      ctx!.save();
-      ctx!.beginPath();
-      ctx!.rect(0, top, W, bandH);
-      ctx!.clip();
-
-      // One horizontal gradient across the full band width.
+      // One horizontal gradient across the full band width, one colour per segment.
       const hGrad = ctx!.createLinearGradient(0, top, W, top);
       for (let s = 0; s < segments; s++) {
         const xMid = (s + 0.5) / segments;
@@ -83,16 +60,32 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
       }
       hGrad.addColorStop(1, auroraColumn(1, band.xSpeed, band.offset, t).peak);
 
+      // Vertical fade mask (positioned at the band so the fade is centred on it).
+      const vGrad = ctx!.createLinearGradient(0, top, 0, bottom);
+      vGrad.addColorStop(0, "rgba(255,255,255,0)");
+      vGrad.addColorStop(0.35, "rgba(255,255,255,1)");
+      vGrad.addColorStop(0.65, "rgba(255,255,255,1)");
+      vGrad.addColorStop(1, "rgba(255,255,255,0)");
+
+      // Clip to band area so destination-in doesn't leak into background or
+      // adjacent bands.
+      ctx!.save();
+      ctx!.beginPath();
+      ctx!.rect(0, top, W, bandH);
+      ctx!.clip();
+
+      ctx!.globalCompositeOperation = "screen";
       ctx!.fillStyle = hGrad;
       ctx!.fillRect(0, top, W, bandH);
 
-      // Vertical fade via destination-in (clipped to band area only).
       ctx!.globalCompositeOperation = "destination-in";
-      ctx!.fillStyle = vMask;
+      ctx!.fillStyle = vGrad;
       ctx!.fillRect(0, top, W, bandH);
 
       ctx!.restore();
-      // ctx restored to screen compositing for next band
+      // restore removes clip and returns compositing to the value before
+      // save() — but we explicitly set "screen" at the top of the function,
+      // and after the loop we set "source-over", so this is fine.
     }
     ctx!.globalCompositeOperation = "source-over";
   }

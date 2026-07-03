@@ -118,33 +118,15 @@
       { speed: 0.22, xSpeed: 1.3, yFrac: 0.63, amp: 0.07, offset: Math.random() },
       { speed: 0.21, xSpeed: 0.9, yFrac: 0.88, amp: 0.06, offset: Math.random() }
     ];
-    let lastMaskH = 0;
-    let maskGrad = null;
-    function ensureMaskGrad(h) {
-      if (h !== lastMaskH || !maskGrad) {
-        maskGrad = ctx.createLinearGradient(0, 0, 0, h);
-        maskGrad.addColorStop(0, "rgba(255,255,255,0)");
-        maskGrad.addColorStop(0.35, "rgba(255,255,255,1)");
-        maskGrad.addColorStop(0.65, "rgba(255,255,255,1)");
-        maskGrad.addColorStop(1, "rgba(255,255,255,0)");
-        lastMaskH = h;
-      }
-      return maskGrad;
-    }
     function drawAurora() {
       const segments = 14;
       const bandH = H * 0.36;
-      const ceilBandH = Math.ceil(bandH);
-      const vMask = ensureMaskGrad(ceilBandH);
       ctx.globalCompositeOperation = "screen";
       for (let b = 0; b < BANDS.length; b++) {
         const band = BANDS[b];
         const centreY = H * (band.yFrac + Math.sin(t * band.speed * 0.7 + b * 2.3) * band.amp);
         const top = centreY - bandH / 2;
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(0, top, W, bandH);
-        ctx.clip();
+        const bottom = top + bandH;
         const hGrad = ctx.createLinearGradient(0, top, W, top);
         for (let s = 0; s < segments; s++) {
           const xMid = (s + 0.5) / segments;
@@ -152,10 +134,20 @@
           hGrad.addColorStop(s / segments, col.peak);
         }
         hGrad.addColorStop(1, auroraColumn(1, band.xSpeed, band.offset, t).peak);
+        const vGrad = ctx.createLinearGradient(0, top, 0, bottom);
+        vGrad.addColorStop(0, "rgba(255,255,255,0)");
+        vGrad.addColorStop(0.35, "rgba(255,255,255,1)");
+        vGrad.addColorStop(0.65, "rgba(255,255,255,1)");
+        vGrad.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, top, W, bandH);
+        ctx.clip();
+        ctx.globalCompositeOperation = "screen";
         ctx.fillStyle = hGrad;
         ctx.fillRect(0, top, W, bandH);
         ctx.globalCompositeOperation = "destination-in";
-        ctx.fillStyle = vMask;
+        ctx.fillStyle = vGrad;
         ctx.fillRect(0, top, W, bandH);
         ctx.restore();
       }
