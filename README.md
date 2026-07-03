@@ -1,6 +1,17 @@
 # Hello Friend NG
 
-This is my fork of Hello Friend NG. The information below comes from the original author's README:
+This is my fork of Hello Friend NG.
+
+**Fork-specific additions:**
+
+- **Canvas animations** (home page only): CRT aurora background, particle field, cursor halo + rings. Authored in TypeScript under `src/`, compiled to `static/js/*.js` via esbuild.
+- **Perf instrumentation**: Each animation has a `FrameMeter` that always records per-frame work duration (240-sample rolling window). Stats read via `window.__auroraMeter` (aurora) as JSON — no DOM scraping needed. Visual HUD at `?perfhud`.
+- **Playwright perf harness** (`npm run perf`): Loads compiled JS in headless Chromium, drains the meter, prints an A/B comparison table for scanline strategies (`?scanlines=rows|pattern`).
+- **Microbenchmark** (`npm run bench`, `node --expose-gc bench.mjs`): Isolated JS math for particle-loop allocation pressure.
+- **Pre-commit gate**: `npm run check` runs `tsc --noEmit` + `vitest` (49 tests) + `node build.mjs`. Required before every commit.
+- **Scanline default**: `rows` (1px dark fillRect every 3px) — measured 0.30ms med / 0.40ms p95 on desktop GPU; `pattern` had a ~50ms tail spike. Runnable A/B via `?scanlines=rows|pattern`.
+
+The information below comes from the original author's README:
 
 ![Hello Friend NG](https://dsh.re/d914c)
 
@@ -192,9 +203,27 @@ Either you comment it out completely or you write the following in
   category = "categories"
 ```
 
-## How to edit the theme
+## How to edit the theme (fork)
 
-Just edit it. You don't need any node stuff. ;)
+This fork uses TypeScript for canvas animations and custom scripts. **Do not edit compiled `static/js/*.js` or `assets/js/*.js` directly** — they carry a GENERATED banner and are overwritten on build.
+
+```bash
+# First time setup
+npm install
+
+# Development
+npm run build      # compile TS → committed .js
+npm run watch      # rebuild on save
+npm run typecheck  # tsc --noEmit (strict)
+npm run test       # vitest (49 tests: math, spectrum, particles-core, rings, perf)
+npm run check      # typecheck + test + build — run before every commit
+
+# Performance tools
+npm run perf       # Playwright headless A/B comparison (aurora scanlines)
+npm run bench      # Node --expose-gc microbenchmark (particle allocation)
+```
+
+See `docs/ts-migration-plan.md` for source layout and `docs/crt-aurora-animation.md` for animation internals.
 
 ## Sponsoring
 
