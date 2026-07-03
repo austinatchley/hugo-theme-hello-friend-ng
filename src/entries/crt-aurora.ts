@@ -165,6 +165,14 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
 
   const BANDS = CFG.bands;
 
+  // ── Gradient cache ─────────────────────────────────────────────────────────
+  // Vertical mask gradients are reused when band y-position hasn't moved >1px.
+  // Cleared on resize (when H changes).
+  const vGradCache: { top: number; gradient: CanvasGradient }[] = [];
+  for (let i = 0; i < BANDS.length; i++) {
+    vGradCache.push({ top: -9999, gradient: ctx!.createLinearGradient(0, 0, 0, 1) });
+  }
+
   function drawAurora(): void {
     const segments = CFG.segments;
     const bandH = H * CFG.bandHeight;
@@ -199,11 +207,20 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
       }
 
       // Vertical fade mask (positioned at the band so the fade is centred on it).
-      const vGrad = ctx!.createLinearGradient(0, top, 0, bottom);
-      vGrad.addColorStop(0, "rgba(255,255,255,0)");
-      vGrad.addColorStop(0.35, "rgba(255,255,255,1)");
-      vGrad.addColorStop(0.65, "rgba(255,255,255,1)");
-      vGrad.addColorStop(1, "rgba(255,255,255,0)");
+      // Cached per-band — rebuilt only when top moves by more than 1px.
+      const cached = vGradCache[b];
+      let vGrad: CanvasGradient;
+      if (Math.abs(cached.top - top) > 1) {
+        vGrad = ctx!.createLinearGradient(0, top, 0, bottom);
+        vGrad.addColorStop(0, "rgba(255,255,255,0)");
+        vGrad.addColorStop(0.35, "rgba(255,255,255,1)");
+        vGrad.addColorStop(0.65, "rgba(255,255,255,1)");
+        vGrad.addColorStop(1, "rgba(255,255,255,0)");
+        cached.top = top;
+        cached.gradient = vGrad;
+      } else {
+        vGrad = cached.gradient;
+      }
 
       // Clip to band area so destination-in doesn't leak into background or
       // adjacent bands.
@@ -338,6 +355,8 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   function resize(): void {
     W = canvas!.width = window.innerWidth;
     H = canvas!.height = window.innerHeight;
+    // Invalidate cached gradients — bandH (H * CFG.bandHeight) changed.
+    for (const c of vGradCache) c.top = -9999;
   }
 
   let resizeTimer: ReturnType<typeof setTimeout>;
