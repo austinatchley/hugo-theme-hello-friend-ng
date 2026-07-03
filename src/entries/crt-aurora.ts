@@ -3,6 +3,7 @@
  * the home page via layouts/partials/extra-head.html.
  */
 import { auroraColumn } from "../lib/spectrum.js";
+import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
 
 (function () {
   "use strict";
@@ -72,9 +73,20 @@ import { auroraColumn } from "../lib/spectrum.js";
   }
 
   // ── Scanlines ─────────────────────────────────────────────────────────────
-  // The scanline stripes are static (a 1px dark row every 3px), so we bake a
-  // 1×3 tile once and paint it as a repeating pattern each frame — one fill
-  // instead of ~H/3 individual fillRect calls.
+  // The scanline stripes are static (a 1px dark row every 3px). Two strategies:
+  //   "pattern" — bake a 1×3 tile once, paint one repeating-pattern fill/frame.
+  //   "rows"    — the original: one thin fillRect per stripe row.
+  // On a CPU-backed canvas (willReadFrequently) the pattern fill touches every
+  // pixel while "rows" touches only 1/3 of them, so "rows" can be faster there.
+  // Selectable via ?scanlines=rows|pattern for live A/B measurement.
+  let scanlineMode: "pattern" | "rows" = "pattern";
+  try {
+    const m = new URLSearchParams(location.search).get("scanlines");
+    if (m === "rows" || m === "pattern") scanlineMode = m;
+  } catch {
+    /* ignore */
+  }
+
   let scanlinePattern: CanvasPattern | null = null;
 
   function buildScanlinePattern(): void {
@@ -90,12 +102,17 @@ import { auroraColumn } from "../lib/spectrum.js";
 
   function drawScanlines(): void {
     // multiply darkens only the stripe rows, preserving the colour underneath
-    if (scanlinePattern) {
-      ctx!.globalCompositeOperation = "multiply";
+    ctx!.globalCompositeOperation = "multiply";
+    if (scanlineMode === "pattern" && scanlinePattern) {
       ctx!.fillStyle = scanlinePattern;
       ctx!.fillRect(0, 0, W, H);
-      ctx!.globalCompositeOperation = "source-over";
+    } else {
+      ctx!.fillStyle = "rgba(0,0,0,0.55)";
+      for (let y = 0; y < H; y += 3) {
+        ctx!.fillRect(0, y, W, 1);
+      }
     }
+    ctx!.globalCompositeOperation = "source-over";
 
     // Slow vertical roll — a faint lighter band drifting downward.
     const rollY = ((t * 38) % (H + 100)) - 50;
@@ -139,6 +156,22 @@ import { auroraColumn } from "../lib/spectrum.js";
     resizeTimer = setTimeout(resize, 120);
   });
 
+  // ── Perf HUD (opt-in) ──────────────────────────────────────────────────────
+  const meter = new FrameMeter();
+  const hudOn = perfHudEnabled();
+  let hud: HTMLDivElement | null = null;
+  let hudCooldown = 0;
+
+  if (hudOn) {
+    hud = document.createElement("div");
+    hud.id = "aurora-perf-hud";
+    hud.style.cssText =
+      "position:fixed;top:8px;left:8px;z-index:100000;font:12px/1.4 monospace;" +
+      "color:#0f0;background:rgba(0,0,0,0.7);padding:6px 8px;white-space:pre;" +
+      "pointer-events:none;border-radius:4px;";
+    document.body.appendChild(hud);
+  }
+
   // ── Main loop ─────────────────────────────────────────────────────────────
   function loop(now: number): void {
     raf = requestAnimationFrame(loop);
@@ -146,6 +179,8 @@ import { auroraColumn } from "../lib/spectrum.js";
     const dt = Math.min((now - lastTime) / 1000, 0.05);
     lastTime = now;
     t += dt;
+
+    const workStart = hudOn ? performance.now() : 0;
 
     ctx!.clearRect(0, 0, W, H);
 
@@ -156,6 +191,20 @@ import { auroraColumn } from "../lib/spectrum.js";
     drawAurora();
     drawScanlines();
     maybeGlitch(dt);
+
+    if (hudOn && hud) {
+      meter.record(performance.now() - workStart);
+      hudCooldown -= dt;
+      if (hudCooldown <= 0) {
+        hudCooldown = 0.25; // refresh HUD text ~4×/sec
+        const s = meter.stats();
+        if (s) {
+          hud.textContent =
+            formatStats("aurora[" + scanlineMode + "]", s) +
+            "\nsamples " + s.count + "  " + W + "×" + H;
+        }
+      }
+    }
   }
 
   // ── Visibility — pause when tab is hidden ─────────────────────────────────

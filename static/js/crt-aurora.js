@@ -39,6 +39,63 @@
     };
   }
 
+  // src/lib/perf.ts
+  var FrameMeter = class {
+    constructor(capacity = 240) {
+      this.samples = [];
+      this.capacity = capacity;
+    }
+    /** Record one frame's work duration in milliseconds. */
+    record(ms) {
+      this.samples.push(ms);
+      if (this.samples.length > this.capacity) this.samples.shift();
+    }
+    /** Number of recorded samples currently in the window. */
+    size() {
+      return this.samples.length;
+    }
+    /** Compute rolling stats. Returns null when there are no samples. */
+    stats() {
+      const n = this.samples.length;
+      if (n === 0) return null;
+      const sorted = this.samples.slice().sort((a, b) => a - b);
+      const median = percentile(sorted, 0.5);
+      return {
+        count: n,
+        median,
+        p95: percentile(sorted, 0.95),
+        max: sorted[n - 1],
+        fpsFromMedian: median > 0 ? 1e3 / median : 0
+      };
+    }
+  };
+  function percentile(sorted, q) {
+    const n = sorted.length;
+    if (n === 0) return 0;
+    if (n === 1) return sorted[0];
+    const idx = q * (n - 1);
+    const lo = Math.floor(idx);
+    const hi = Math.ceil(idx);
+    if (lo === hi) return sorted[lo];
+    const frac = idx - lo;
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * frac;
+  }
+  function perfHudEnabled() {
+    try {
+      if (typeof location !== "undefined" && /[?&]perfhud\b/.test(location.search)) {
+        return true;
+      }
+      if (typeof localStorage !== "undefined" && localStorage.getItem("perfhud") === "1") {
+        return true;
+      }
+    } catch {
+    }
+    return false;
+  }
+  function formatStats(label, s) {
+    return label + "  med " + s.median.toFixed(2) + "ms  p95 " + s.p95.toFixed(2) + "ms  max " + s.max.toFixed(2) + "ms  (" + s.fpsFromMedian.toFixed(0) + " fps)";
+  }
+
   // src/entries/crt-aurora.ts
   (function() {
     "use strict";
@@ -82,6 +139,12 @@
       }
       ctx.globalCompositeOperation = "source-over";
     }
+    let scanlineMode = "pattern";
+    try {
+      const m = new URLSearchParams(location.search).get("scanlines");
+      if (m === "rows" || m === "pattern") scanlineMode = m;
+    } catch {
+    }
     let scanlinePattern = null;
     function buildScanlinePattern() {
       const tile = document.createElement("canvas");
@@ -94,12 +157,17 @@
       scanlinePattern = ctx.createPattern(tile, "repeat");
     }
     function drawScanlines() {
-      if (scanlinePattern) {
-        ctx.globalCompositeOperation = "multiply";
+      ctx.globalCompositeOperation = "multiply";
+      if (scanlineMode === "pattern" && scanlinePattern) {
         ctx.fillStyle = scanlinePattern;
         ctx.fillRect(0, 0, W, H);
-        ctx.globalCompositeOperation = "source-over";
+      } else {
+        ctx.fillStyle = "rgba(0,0,0,0.55)";
+        for (let y = 0; y < H; y += 3) {
+          ctx.fillRect(0, y, W, 1);
+        }
       }
+      ctx.globalCompositeOperation = "source-over";
       const rollY = t * 38 % (H + 100) - 50;
       const rollGrad = ctx.createLinearGradient(0, rollY, 0, rollY + 100);
       rollGrad.addColorStop(0, "rgba(255,255,255,0)");
@@ -131,18 +199,40 @@
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(resize, 120);
     });
+    const meter = new FrameMeter();
+    const hudOn = perfHudEnabled();
+    let hud = null;
+    let hudCooldown = 0;
+    if (hudOn) {
+      hud = document.createElement("div");
+      hud.id = "aurora-perf-hud";
+      hud.style.cssText = "position:fixed;top:8px;left:8px;z-index:100000;font:12px/1.4 monospace;color:#0f0;background:rgba(0,0,0,0.7);padding:6px 8px;white-space:pre;pointer-events:none;border-radius:4px;";
+      document.body.appendChild(hud);
+    }
     function loop(now) {
       raf = requestAnimationFrame(loop);
       if (!lastTime) lastTime = now;
       const dt = Math.min((now - lastTime) / 1e3, 0.05);
       lastTime = now;
       t += dt;
+      const workStart = hudOn ? performance.now() : 0;
       ctx.clearRect(0, 0, W, H);
       ctx.fillStyle = "#15202b";
       ctx.fillRect(0, 0, W, H);
       drawAurora();
       drawScanlines();
       maybeGlitch(dt);
+      if (hudOn && hud) {
+        meter.record(performance.now() - workStart);
+        hudCooldown -= dt;
+        if (hudCooldown <= 0) {
+          hudCooldown = 0.25;
+          const s = meter.stats();
+          if (s) {
+            hud.textContent = formatStats("aurora[" + scanlineMode + "]", s) + "\nsamples " + s.count + "  " + W + "\xD7" + H;
+          }
+        }
+      }
     }
     document.addEventListener("visibilitychange", function() {
       if (document.hidden) {
