@@ -21,6 +21,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   let t = 0;
   let raf: number | null = null;
   let lastTime: number | null = null;
+  let frameCount = 0;
 
   // Cursor rings and click ripples are handled globally by cursor-fx.
 
@@ -60,6 +61,39 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
 
   const AURORA_STORAGE_KEY = "aurora_state";
 
+  // ── Quality tier ─────────────────────────────────────────────────────────────
+  // Determined by: ?quality=low|medium|high URL param (highest priority),
+  // then prefers-reduced-motion media query, then default 'high'.
+  type Quality = "high" | "medium" | "low";
+
+  function detectQuality(): Quality {
+    try {
+      const q = new URLSearchParams(location.search).get("quality");
+      if (q === "low" || q === "medium" || q === "high") return q;
+    } catch { /* ignore */ }
+
+    try {
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) return "low";
+    } catch { /* ignore */ }
+
+    return "high";
+  }
+
+  const QUALITY = detectQuality();
+
+  // Quality presets: [bandCount, segments, noise, scanlines, glitch]
+  const QUALITY_PRESETS: Record<Quality, {
+    bandCount: number;
+    segments: number;
+    noiseEnabled: boolean;
+    scanlinesEnabled: boolean;
+    glitchEnabled: boolean;
+  }> = {
+    high:   { bandCount: 6, segments: 20, noiseEnabled: true,  scanlinesEnabled: true, glitchEnabled: true },
+    medium: { bandCount: 4, segments: 14, noiseEnabled: false, scanlinesEnabled: true, glitchEnabled: true },
+    low:    { bandCount: 2, segments: 10, noiseEnabled: false, scanlinesEnabled: false, glitchEnabled: false },
+  };
+
   // Build config with URL param overrides
   function buildConfig(): AuroraConfig {
     const params = new URLSearchParams(location.search);
@@ -78,7 +112,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
 
     return {
       bands,
-      segments: getInt("segments", 20),
+      segments: getInt("segments", QUALITY_PRESETS[QUALITY].segments),
       bandHeight: getFloat("bandHeight", 0.6),
       yJitterAmp: getFloat("yJitterAmp", 0.02),
       yJitterSpeed: getFloat("yJitterSpeed", 0.43),
@@ -99,6 +133,25 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   }
 
   const CFG = buildConfig();
+  let QP = { ...QUALITY_PRESETS[QUALITY] };
+  let currentQuality: Quality = QUALITY;
+  const QUALITY_ORDER: Quality[] = ["high", "medium", "low"];
+
+  // Downgrade quality if p95 frame time exceeds threshold for 120 consecutive
+  // frames. Monitored once per second (~60 frames at 60fps).
+  function checkFrameBudget(): void {
+    if (currentQuality === "low") return;
+    const s = meter.stats();
+    if (!s || s.count < 60) return;
+    const threshold = currentQuality === "high" ? 16 : 20;
+    if (s.p95 > threshold) {
+      const idx = QUALITY_ORDER.indexOf(currentQuality);
+      if (idx < QUALITY_ORDER.length - 1) {
+        currentQuality = QUALITY_ORDER[idx + 1];
+        QP = { ...QUALITY_PRESETS[currentQuality] };
+      }
+    }
+  }
 
   // ── State persistence ────────────────────────────────────────────────────────
   // Save band offsets and current time so the animation is seamless across page
@@ -174,11 +227,12 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   }
 
   function drawAurora(): void {
-    const segments = CFG.segments;
+    const segments = QP.segments;
+    const bandCount = Math.min(QP.bandCount, BANDS.length);
     const bandH = H * CFG.bandHeight;
 
     ctx!.globalCompositeOperation = "screen";
-    for (let b = 0; b < BANDS.length; b++) {
+    for (let b = 0; b < bandCount; b++) {
       const band = BANDS[b];
 
       // Y-jitter: slow sine wobble so seams aren't static straight lines.
@@ -249,6 +303,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   // A fixed div with a pre-generated noise PNG as background-image, composited
   // by the browser's GPU layer. Zero per-frame JS cost.
   function injectNoiseOverlay(): void {
+    if (!QP.noiseEnabled) return;
     // Generate noise PNG once as a base64 data URL
     const nc = document.createElement("canvas");
     const nw = CFG.noiseTileSize;
@@ -388,6 +443,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     const dt = Math.min((now - lastTime) / 1000, 0.05);
     lastTime = now;
     t += dt;
+    frameCount++;
 
     const workStart = performance.now();
 
@@ -398,10 +454,13 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     ctx!.fillRect(0, 0, W, H);
 
     drawAurora();
-    drawScanlines();
-    maybeGlitch(dt);
+    if (QP.scanlinesEnabled) drawScanlines();
+    if (QP.glitchEnabled) maybeGlitch(dt);
 
     meter.record(performance.now() - workStart);
+
+    // Check frame budget every ~60 frames (roughly once per second)
+    if (frameCount % 60 === 0) checkFrameBudget();
 
     if (hudOn && hud) {
       hudCooldown -= dt;
