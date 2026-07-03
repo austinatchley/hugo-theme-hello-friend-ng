@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 /**
- * Aurora scanline A/B perf harness — multi-trial with warmup.
+ * Generic frame-timing harness for browser animations.
  *
- * Launches headless Chromium, loads the real compiled crt-aurora.js for each
- * scanline strategy, discards warmup frames, then runs N trials that each
- * collect a fresh FrameMeter window.  Aggregated stats are printed in a table
- * I (an LLM) can read without eye-strain.
+ * Launches headless Chromium, loads a page with the animation JS, discards
+ * warmup frames, then runs N trials that each collect a fresh FrameMeter
+ * window.  Aggregated stats across trials are printed in a table.
  *
- * Usage: npm run perf
+ * Usage
+ * -----
+ *   node perf.mjs                          # default: aurora scanline A/B
+ *   node perf.mjs --input static/js/particles.js  # benchmark any animation
+ *   node perf.mjs --scanlines rows         # single-mode aurora test
+ *   node perf.mjs --scanlines rows --scanlines pattern  # explicit A/B list
  *
  * Requirements: playwright (devDependency), chromium installed via
  *   npx playwright install chromium
@@ -15,10 +19,8 @@
  * Notes
  * -----
  * Headless Chromium typically falls back to SwiftShader (software GL).
- * Absolute numbers differ from your desktop GPU, but *relative* A/B
- * comparisons (rows vs pattern) are valid for regression detection.
- * The detected renderer is printed at the top of the output so you know
- * what you're looking at.
+ * Absolute numbers differ from your desktop GPU, but *relative* comparisons
+ * are valid for regression detection.  Renderer string is printed in output.
  */
 
 import { chromium } from "playwright";
@@ -27,14 +29,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
 
-// ── Config ─────────────────────────────────────────────────────────────────
-const MODES = ["rows", "pattern"];
+// ── Defaults ────────────────────────────────────────────────────────────────
 const WARMUP_FRAMES = 120;
-const TRIAL_FRAMES = 240; // FrameMeter capacity
+const TRIAL_FRAMES = 240;
 const TRIALS = 5;
 const VIEWPORT = { width: 1280, height: 720 };
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Stats helpers ────────────────────────────────────────────────────────────
 function avg(arr) {
   return arr.reduce((a, b) => a + b, 0) / arr.length;
 }
@@ -44,153 +45,155 @@ function min(arr) {
 function max(arr) {
   return arr.reduce((a, b) => (a > b ? a : b), -Infinity);
 }
-function fmt(n) {
-  return n.toFixed(2).padStart(5) + "ms";
-}
 
-// 1. Rebuild so the compiled JS is fresh
-console.log("→ Building TS...");
-execSync("node build.mjs", { stdio: "pipe" });
+// ── Benchmark runner ─────────────────────────────────────────────────────────
+/**
+ * Measure frame timing for a page animation.
+ *
+ * @param {import('playwright').Page} page  – Playwright page with animation running
+ * @param {object} options
+ * @param {string}  options.meterGlobal  – name of the FrameMeter on `window`, e.g. "__auroraMeter"
+ * @param {string}  [options.label]      – label for logging
+ * @param {number}  [options.warmup]     – frames to discard (default 120)
+ * @param {number}  [options.trials]     – number of trials (default 5)
+ * @param {number}  [options.trialFrames] – frames per trial (default 240)
+ * @param {(page: import('playwright').Page, trialIndex: number) => Promise<void>}
+ *                  [options.setupTrial]  – optional async callback before each trial
+ * @returns {object|null}  { medMin, medAvg, medMax, p95Min, p95Avg, p95Max,
+ *                           maxMin, maxAvg, maxMax, trials } or null if no data
+ */
+async function benchmark(page, options) {
+  const {
+    meterGlobal,
+    label = meterGlobal,
+    warmup = WARMUP_FRAMES,
+    trials = TRIALS,
+    trialFrames = TRIAL_FRAMES,
+    setupTrial,
+  } = options;
 
-// 2. Read the compiled aurora bundle
-const js = readFileSync("static/js/crt-aurora.js", "utf8");
+  const mg = meterGlobal;
 
-// 3. Write a minimal test page (inline script avoids file-relative issues)
-const html =
-  '<!DOCTYPE html>\n<html><head><meta charset="utf-8"></head><body>\n<canvas id="crt-aurora"></canvas>\n<script>' +
-  js +
-  "</script>\n</body></html>";
+  // ── Warmup ──────────────────────────────────────────────────────────
+  console.log("    warmup " + warmup + " frames…");
+  await page.waitForFunction(
+    (args) => {
+      const [mg, n] = args;
+      const m = window[mg];
+      return m && m.size && m.size() >= n;
+    },
+    [mg, warmup],
+    { timeout: 30_000 },
+  );
 
-const tmpDir = mkdtempSync(join(tmpdir(), "aurora-perf-"));
-const tmpFile = join(tmpDir, "test.html");
-writeFileSync(tmpFile, html);
+  // ── Multi-trial ─────────────────────────────────────────────────────
+  const trialResults = [];
+  for (let t = 0; t < trials; t++) {
+    if (setupTrial) await setupTrial(page, t);
 
-let browser;
-try {
-  // 4. Launch headless Chromium
-  browser = await chromium.launch({ headless: true });
-  const ctx = await browser.newContext({ viewport: VIEWPORT });
-  const page = await ctx.newPage();
+    await page.evaluate((mg) => {
+      const m = window[mg];
+      if (m && m.reset) m.reset();
+    }, mg);
 
-  // Detect renderer string
-  const renderer = await page.evaluate(() => {
-    try {
-      const c = document.createElement("canvas");
-      const gl = c.getContext("webgl");
-      if (!gl) return "no-webgl";
-      return gl.getParameter(gl.RENDERER);
-    } catch {
-      return "unknown";
-    }
-  });
-
-  await page.exposeFunction("log", (msg) => console.log("  [page] " + msg));
-
-  // 5. Run each scanline mode
-  const results = {};
-  for (const mode of MODES) {
-    const url = "file://" + tmpFile + "?scanlines=" + mode;
-    console.log("\n  " + mode + "  " + url);
-    await page.goto(url, { waitUntil: "networkidle" });
-
-    // ── Warmup: JIT-compile, canvas init, then discard ───────────────
-    console.log("    warmup " + WARMUP_FRAMES + " frames…");
     await page.waitForFunction(
-      (n) => {
-        const m = window.__auroraMeter;
-        return m && m.size() >= n;
+      (args) => {
+        const [mg, n] = args;
+        const m = window[mg];
+        return m && m.size && m.size() >= n;
       },
-      WARMUP_FRAMES,
+      [mg, trialFrames],
       { timeout: 30_000 },
     );
 
-    // ── Multi-trial measurement ──────────────────────────────────────
-    const trials = [];
-    for (let t = 0; t < TRIALS; t++) {
-      await page.evaluate(() => window.__resetAuroraMeter());
-      await page.waitForFunction(
-        (n) => {
-          const m = window.__auroraMeter;
-          return m && m.size() >= n;
-        },
-        TRIAL_FRAMES,
-        { timeout: 30_000 },
-      );
-      const s = await page.evaluate(() => {
-        const m = window.__auroraMeter;
-        return m ? m.stats() : null;
-      });
-      if (s) {
-        trials.push(s);
-        console.log(
-          "    trial " +
-            (t + 1) +
-            "/" +
-            TRIALS +
-            "  med " +
-            s.median.toFixed(2) +
-            "  p95 " +
-            s.p95.toFixed(2) +
-            "  max " +
-            s.max.toFixed(2),
-        );
-      }
-    }
+    const s = await page.evaluate((mg) => {
+      const m = window[mg];
+      return m && m.stats ? m.stats() : null;
+    }, mg);
 
-    // Aggregate
-    if (trials.length > 0) {
-      const medians = trials.map((s) => s.median);
-      const p95s = trials.map((s) => s.p95);
-      const maxes = trials.map((s) => s.max);
-      results[mode] = {
-        medMin: min(medians),
-        medAvg: avg(medians),
-        medMax: max(medians),
-        p95Min: min(p95s),
-        p95Avg: avg(p95s),
-        p95Max: max(p95s),
-        maxMin: min(maxes),
-        maxAvg: avg(maxes),
-        maxMax: max(maxes),
-        trials: trials.length,
-      };
-    } else {
-      results[mode] = null;
+    if (s) {
+      trialResults.push(s);
+      console.log(
+        "    trial " +
+          (t + 1) +
+          "/" +
+          trials +
+          "  med " +
+          s.median.toFixed(2) +
+          "  p95 " +
+          s.p95.toFixed(2) +
+          "  max " +
+          s.max.toFixed(2),
+      );
     }
   }
 
-  // 6. Print comparison table
+  // ── Aggregate ───────────────────────────────────────────────────────
+  if (trialResults.length === 0) return null;
+
+  const medians = trialResults.map((s) => s.median);
+  const p95s = trialResults.map((s) => s.p95);
+  const maxes = trialResults.map((s) => s.max);
+
+  return {
+    medMin: min(medians),
+    medAvg: avg(medians),
+    medMax: max(medians),
+    p95Min: min(p95s),
+    p95Avg: avg(p95s),
+    p95Max: max(p95s),
+    maxMin: min(maxes),
+    maxAvg: avg(maxes),
+    maxMax: max(maxes),
+    trials: trialResults.length,
+  };
+}
+
+// ── Page helpers ────────────────────────────────────────────────────────────
+function buildTestPage(jsPath) {
+  const js = readFileSync(jsPath, "utf8");
+  // Insert a minimal canvas for canvas-based animations; other setups
+  // (like cursor-fx which attaches to the document) work without it.
+  return (
+    '<!DOCTYPE html>\n<html><head><meta charset="utf-8"></head><body>\n<canvas id="crt-aurora"></canvas>\n<script>' +
+    js +
+    "</script>\n</body></html>"
+  );
+}
+
+function createTempPage(html) {
+  const dir = mkdtempSync(join(tmpdir(), "anim-perf-"));
+  const file = join(dir, "test.html");
+  writeFileSync(file, html);
+  return { dir, file, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+}
+
+// ── Table output ─────────────────────────────────────────────────────────────
+function printResults(rows, { renderer, viewport, warmup, trialFrames, title }) {
   console.log("\n" + "=".repeat(64));
-  console.log("  Aurora scanline  A / B  —  " + TRIALS + " trials each");
+  console.log("  " + title);
   console.log("=".repeat(64));
   console.log("  Renderer  " + renderer);
-  console.log("  Viewport  " + VIEWPORT.width + " × " + VIEWPORT.height);
-  console.log("  Warmup    " + WARMUP_FRAMES + " frames");
-  console.log("  Trial     " + TRIAL_FRAMES + " frames / trial\n");
+  console.log("  Viewport  " + viewport.width + " × " + viewport.height);
+  console.log("  Warmup    " + warmup + " frames");
+  console.log("  Trial     " + trialFrames + " frames / trial\n");
 
   // Header
-  console.log(
-    "  ┌──────────┬────────────┬────────────┬────────────┐",
-  );
-  console.log(
-    "  │ Scanline │ med        │ p95        │ max        │",
-  );
-  console.log(
-    "  ├──────────┼────────────┼────────────┼────────────┤",
-  );
+  console.log("  ┌──────────┬────────────┬────────────┬────────────┐");
+  console.log("  │ Label    │ med        │ p95        │ max        │");
+  console.log("  ├──────────┼────────────┼────────────┼────────────┤");
 
-  for (const mode of MODES) {
-    const r = results[mode];
-    if (!r) {
-      console.log("  │ " + mode.padEnd(8) + " │  — no data —                   │");
+  for (const { label, result } of rows) {
+    if (!result) {
+      console.log("  │ " + label.padEnd(8) + " │  — no data —                   │");
       continue;
     }
-    const medStr = r.medAvg.toFixed(2) + "ms  [" + r.medMin.toFixed(1) + "–" + r.medMax.toFixed(1) + "]";
-    const p95Str = r.p95Avg.toFixed(2) + "ms  [" + r.p95Min.toFixed(1) + "–" + r.p95Max.toFixed(1) + "]";
-    const maxStr = r.maxAvg.toFixed(2) + "ms  [" + r.maxMin.toFixed(1) + "–" + r.maxMax.toFixed(1) + "]";
+    const medStr = result.medAvg.toFixed(2) + "ms  [" + result.medMin.toFixed(1) + "–" + result.medMax.toFixed(1) + "]";
+    const p95Str = result.p95Avg.toFixed(2) + "ms  [" + result.p95Min.toFixed(1) + "–" + result.p95Max.toFixed(1) + "]";
+    const maxStr = result.maxAvg.toFixed(2) + "ms  [" + result.maxMin.toFixed(1) + "–" + result.maxMax.toFixed(1) + "]";
     console.log(
       "  │ " +
-        mode.padEnd(8) +
+        label.padEnd(8) +
         " │ " +
         medStr.padStart(10) +
         " │ " +
@@ -200,23 +203,114 @@ try {
         " │",
     );
   }
-  console.log(
-    "  └──────────┴────────────┴────────────┴────────────┘",
-  );
+  console.log("  └──────────┴────────────┴────────────┴────────────┘");
 
-  // Caveat
   if (renderer !== "unknown") {
-    console.log(
-      "  ⚠ Headless renderer (" +
-        renderer +
-        ") — relative A/B is valid,",
-    );
-    console.log(
-      "    but tail spikes (max) may differ from your GPU-backed desktop.",
-    );
+    console.log("  ⚠ Headless renderer (" + renderer + ") — relative comparison is valid,");
+    console.log("    but tail spikes (max) may differ from your GPU-backed desktop.");
   }
   console.log("");
-} finally {
-  if (browser) await browser.close();
-  rmSync(tmpDir, { recursive: true, force: true });
 }
+
+// ── CLI parsing ──────────────────────────────────────────────────────────────
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const opts = { scanlines: [], input: null };
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--scanlines") {
+      opts.scanlines.push(args[++i]);
+    } else if (args[i] === "--input") {
+      opts.input = args[++i];
+    }
+  }
+  return opts;
+}
+
+// ── Main ─────────────────────────────────────────────────────────────────────
+async function main() {
+  const opts = parseArgs();
+
+  // 1. Rebuild TS
+  console.log("→ Building TS...");
+  execSync("node build.mjs", { stdio: "pipe" });
+
+  // 2. Determine what to benchmark
+  const jsPath = opts.input || "static/js/crt-aurora.js";
+  const html = buildTestPage(jsPath);
+  const tmp = createTempPage(html);
+
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true });
+    const ctx = await browser.newContext({ viewport: VIEWPORT });
+    const page = await ctx.newPage();
+
+    // Detect renderer
+    const renderer = await page.evaluate(() => {
+      try {
+        const c = document.createElement("canvas");
+        const gl = c.getContext("webgl");
+        if (!gl) return "no-webgl";
+        return gl.getParameter(gl.RENDERER);
+      } catch {
+        return "unknown";
+      }
+    });
+
+    // Build list of scenarios to run
+    const scenarios = [];
+
+    if (opts.input) {
+      // Single-animation benchmark (any JS with a FrameMeter on window)
+      // User must supply the global name via query param or we guess.
+      const mg = opts.input.includes("crt-aurora") ? "__auroraMeter"
+             : opts.input.includes("particles") ? "__particleMeter"
+             : opts.input.includes("cursor-fx") ? "__cursorMeter"
+             : "__auroraMeter";
+      scenarios.push({ label: opts.input, meterGlobal: mg, url: "file://" + tmp.file });
+    } else {
+      // Default: aurora scanline A/B
+      const modes = opts.scanlines.length > 0 ? opts.scanlines : ["rows", "pattern"];
+      for (const mode of modes) {
+        scenarios.push({
+          label: mode,
+          meterGlobal: "__auroraMeter",
+          url: "file://" + tmp.file + "?scanlines=" + mode,
+        });
+      }
+    }
+
+    // 3. Run each scenario
+    const results = [];
+    for (const sc of scenarios) {
+      console.log("\n  " + sc.label + "  " + sc.url);
+      await page.goto(sc.url, { waitUntil: "networkidle" });
+
+      const result = await benchmark(page, {
+        meterGlobal: sc.meterGlobal,
+        label: sc.label,
+      });
+      results.push({ label: sc.label, result });
+    }
+
+    // 4. Print comparison table
+    const title = opts.input
+      ? "Animation benchmark  —  " + TRIALS + " trials"
+      : "Aurora scanline  A / B  —  " + TRIALS + " trials each";
+    printResults(results, {
+      renderer,
+      viewport: VIEWPORT,
+      warmup: WARMUP_FRAMES,
+      trialFrames: TRIAL_FRAMES,
+      title,
+    });
+  } finally {
+    if (browser) await browser.close();
+    tmp.cleanup();
+  }
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

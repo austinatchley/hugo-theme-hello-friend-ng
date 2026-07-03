@@ -114,12 +114,12 @@
     let lastTime = null;
     let frameCount = 0;
     const DEFAULT_BANDS = [
-      { speed: 0.26, xSpeed: 1.1, yFrac: 0.08, amp: 0.06 },
-      { speed: 0.18, xSpeed: 0.8, yFrac: 0.26, amp: 0.05 },
-      { speed: 0.22, xSpeed: 1.3, yFrac: 0.44, amp: 0.07 },
-      { speed: 0.21, xSpeed: 0.9, yFrac: 0.62, amp: 0.06 },
-      { speed: 0.24, xSpeed: 1.2, yFrac: 0.8, amp: 0.05 },
-      { speed: 0.19, xSpeed: 0.7, yFrac: 0.92, amp: 0.04 }
+      { speed: 0.26, xSpeed: 1.6, yFrac: 0.08, amp: 0.06 },
+      { speed: 0.18, xSpeed: 1.2, yFrac: 0.26, amp: 0.05 },
+      { speed: 0.22, xSpeed: 1.9, yFrac: 0.44, amp: 0.07 },
+      { speed: 0.21, xSpeed: 1.4, yFrac: 0.62, amp: 0.06 },
+      { speed: 0.24, xSpeed: 1.8, yFrac: 0.8, amp: 0.05 },
+      { speed: 0.19, xSpeed: 1, yFrac: 0.92, amp: 0.04 }
     ];
     const AURORA_STORAGE_KEY = "aurora_state";
     function detectQuality() {
@@ -240,7 +240,8 @@
       const segments = QP.segments;
       const bandCount = Math.min(QP.bandCount, BANDS.length);
       const bandH = H * CFG.bandHeight;
-      ctx.globalCompositeOperation = "screen";
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = 0.69;
       for (let b = 0; b < bandCount; b++) {
         const band = BANDS[b];
         const yJitter = Math.sin(t * CFG.yJitterSpeed + b * 1.7) * CFG.yJitterAmp;
@@ -266,19 +267,33 @@
         if (Math.abs(cached.top - top) > 1) {
           vGrad = ctx.createLinearGradient(0, top, 0, bottom);
           vGrad.addColorStop(0, "rgba(255,255,255,0)");
-          vGrad.addColorStop(0.35, "rgba(255,255,255,1)");
-          vGrad.addColorStop(0.65, "rgba(255,255,255,1)");
+          vGrad.addColorStop(0.3, "rgba(255,255,255,1)");
+          vGrad.addColorStop(0.7, "rgba(255,255,255,1)");
           vGrad.addColorStop(1, "rgba(255,255,255,0)");
           cached.top = top;
           cached.gradient = vGrad;
         } else {
           vGrad = cached.gradient;
         }
+        const waveAmp = bandH * 0.048;
+        const waveFreq = 2e-3;
+        const wavePhase = t * 0.3 + b * 1.3;
+        const steps = Math.ceil(W / 8);
         ctx.save();
         ctx.beginPath();
-        ctx.rect(0, top, W, bandH);
+        ctx.moveTo(0, top + Math.sin(0 + wavePhase) * waveAmp);
+        for (let i = 1; i <= steps; i++) {
+          const x = i / steps * W;
+          const wave = Math.sin(x * waveFreq + wavePhase) * waveAmp;
+          ctx.lineTo(x, top + wave);
+        }
+        for (let i = steps; i >= 0; i--) {
+          const x = i / steps * W;
+          const wave = Math.sin(x * waveFreq + wavePhase) * waveAmp;
+          ctx.lineTo(x, bottom + wave);
+        }
+        ctx.closePath();
         ctx.clip();
-        ctx.globalCompositeOperation = "screen";
         ctx.fillStyle = hGrad;
         ctx.fillRect(0, top, W, bandH);
         ctx.globalCompositeOperation = "destination-in";
@@ -286,7 +301,7 @@
         ctx.fillRect(0, top, W, bandH);
         ctx.restore();
       }
-      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = 1;
     }
     function injectNoiseOverlay() {
       if (!QP.noiseEnabled) return;
