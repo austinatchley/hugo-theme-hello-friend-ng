@@ -27,10 +27,18 @@ html:has(body.crt-page) {
   background-color: #15202b;
 }
 
-// Give .content a solid background — it wraps main content and is transparent
-// by default. Post margins within it expose raw canvas without this fill.
-body.crt-page .content {
-  background: #202732;
+// Desktop: side margins on .content so the aurora shows through as a
+// decorative border around post content. Only on pages with actual posts
+// (not the home page).
+body.crt-page .content:has(.post, .posts) {
+  padding: 0 40px;
+
+  // Mobile: collapse margins and fill background so raw canvas doesn't peek
+  // through post margins between header and body.
+  @media #{$media-size-phone} {
+    padding: 0;
+    background: #202732;
+  }
 }
 
 // ── Particle field canvas (above aurora, below page content) ─────────────────
