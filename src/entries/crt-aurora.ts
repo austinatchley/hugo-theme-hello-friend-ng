@@ -56,7 +56,6 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     { speed: 0.22, xSpeed: 1.9, yFrac: 0.44, amp: 0.07 },
     { speed: 0.21, xSpeed: 1.4, yFrac: 0.62, amp: 0.06 },
     { speed: 0.24, xSpeed: 1.8, yFrac: 0.80, amp: 0.05 },
-    { speed: 0.19, xSpeed: 1.0, yFrac: 0.92, amp: 0.04 },
   ];
 
   const AURORA_STORAGE_KEY = "aurora_state";
@@ -90,7 +89,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     glitchEnabled: boolean;
     ditherEnabled: boolean;
   }> = {
-    high:   { bandCount: 6, segments: 20, noiseEnabled: true,  scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: false },
+    high:   { bandCount: 5, segments: 20, noiseEnabled: true,  scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: false },
     medium: { bandCount: 4, segments: 14, noiseEnabled: false, scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: false },
     low:    { bandCount: 2, segments: 10, noiseEnabled: false, scanlinesEnabled: false, glitchEnabled: false, ditherEnabled: false },
   };
@@ -121,7 +120,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
       segmentJitterSpeed: getFloat("segmentJitterSpeed", 0.6),
       noiseOpacity: getFloat("noiseOpacity", 0.08),
       noiseTileSize: getInt("noiseTileSize", 256),
-      scanlineOpacity: getFloat("scanlineOpacity", 0.55),
+      scanlineOpacity: getFloat("scanlineOpacity", 0.45),
       scanlineSpacing: getInt("scanlineSpacing", 3),
       rollSpeed: getFloat("rollSpeed", 38),
       rollHeight: getInt("rollHeight", 100),

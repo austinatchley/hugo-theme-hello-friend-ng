@@ -13,8 +13,8 @@
   z-index: -1;
   display: block;
   pointer-events: none;
-  filter: blur(10px);
-  opacity: 0.5;
+  filter: blur(8px);
+  opacity: 0.6;
 }
 
 // body must be transparent so the canvas behind it shows through.
