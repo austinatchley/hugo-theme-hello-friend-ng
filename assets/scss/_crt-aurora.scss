@@ -27,11 +27,11 @@ html:has(body.crt-page) {
   background-color: #15202b;
 }
 
-// Near-opaque container — fills flexbox centering gaps between header and
-// content on mobile (where the raw canvas would otherwise peek through) while
-// still allowing a whisper of aurora glow through the content area.
-body.crt-page .container {
-  background: rgba(21, 32, 43, 0.92);
+// Give content wrappers a solid background — they're transparent by default,
+// so their padding/margin would expose raw canvas between header and body.
+body.crt-page .post,
+body.crt-page .posts {
+  background: #202732;
 }
 
 // ── Particle field canvas (above aurora, below page content) ─────────────────
