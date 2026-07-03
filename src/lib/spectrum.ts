@@ -2,10 +2,10 @@ import { wrap01 } from "./math.js";
 
 /**
  * Shared hue spectrum (degrees) that all aurora bands sample from.
- * teal → cyan → blue → violet → magenta → deep-red → gold → (wraps to teal).
+ * green → teal → blue → violet → magenta → deep-red → yellow → (wraps to green).
  */
 export const SPECTRUM: readonly number[] = [
-  168, 188, 210, 240, 315, 350, 42, 168,
+  130, 170, 210, 260, 320, 350, 50, 130,
 ];
 
 /**
@@ -18,7 +18,13 @@ export function sampleSpectrum(pos: number): number {
   const idx = scaled * n;
   const lo = Math.floor(idx);
   const frac = idx - lo;
-  return SPECTRUM[lo] + (SPECTRUM[lo + 1] - SPECTRUM[lo]) * frac;
+  const a = SPECTRUM[lo];
+  const b = SPECTRUM[lo + 1];
+  let diff = b - a;
+  // Take the shorter path around the hue circle.
+  if (diff > 180) diff -= 360;
+  else if (diff < -180) diff += 360;
+  return a + diff * frac;
 }
 
 export interface AuroraColumn {

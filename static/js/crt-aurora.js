@@ -8,14 +8,14 @@
 
   // src/lib/spectrum.ts
   var SPECTRUM = [
-    168,
-    188,
+    130,
+    170,
     210,
-    240,
-    315,
+    260,
+    320,
     350,
-    42,
-    168
+    50,
+    130
   ];
   function sampleSpectrum(pos) {
     const scaled = wrap01(pos);
@@ -23,7 +23,12 @@
     const idx = scaled * n;
     const lo = Math.floor(idx);
     const frac = idx - lo;
-    return SPECTRUM[lo] + (SPECTRUM[lo + 1] - SPECTRUM[lo]) * frac;
+    const a = SPECTRUM[lo];
+    const b = SPECTRUM[lo + 1];
+    let diff = b - a;
+    if (diff > 180) diff -= 360;
+    else if (diff < -180) diff += 360;
+    return a + diff * frac;
   }
   function auroraColumn(xMid, xSpeed, offset, t) {
     const phase = xMid * Math.PI * 2.8 + t * xSpeed;

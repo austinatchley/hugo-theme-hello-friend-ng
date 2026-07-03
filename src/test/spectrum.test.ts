@@ -20,7 +20,7 @@ describe("sampleSpectrum", () => {
 
   it("interpolates linearly between two stops", () => {
     const n = SPECTRUM.length - 1;
-    // Halfway between stop 0 (168) and stop 1 (188) = 178
+    // Halfway between stop 0 (130) and stop 1 (170) = 150
     const mid = sampleSpectrum(0.5 / n);
     expect(mid).toBeCloseTo((SPECTRUM[0] + SPECTRUM[1]) / 2);
   });
