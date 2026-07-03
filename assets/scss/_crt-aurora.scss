@@ -27,10 +27,9 @@ html:has(body.crt-page) {
   background-color: #15202b;
 }
 
-// Give content wrappers a solid background — they're transparent by default,
-// so their padding/margin would expose raw canvas between header and body.
-body.crt-page .post,
-body.crt-page .posts {
+// Give .content a solid background — it wraps main content and is transparent
+// by default. Post margins within it expose raw canvas without this fill.
+body.crt-page .content {
   background: #202732;
 }
 
