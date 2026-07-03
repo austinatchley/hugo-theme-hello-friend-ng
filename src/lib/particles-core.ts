@@ -52,12 +52,20 @@ export interface DriftTarget {
   driftY: number;
 }
 
-/** Organic drift position around a particle's home, at time `t`. */
-export function drift(p: Particle, t: number): DriftTarget {
-  return {
-    driftX: p.hx + Math.sin(t * p.freq + p.phase) * p.ampX,
-    driftY: p.hy + Math.cos(t * p.freq * 0.8 + p.phase * 1.3) * p.ampY,
-  };
+/** Create a zeroed DriftTarget for reuse across frames. */
+export function makeDriftTarget(): DriftTarget {
+  return { driftX: 0, driftY: 0 };
+}
+
+/**
+ * Organic drift position around a particle's home, at time `t`, written into
+ * `out`. Returns `out` so callers can reuse a single scratch object per frame
+ * and avoid per-particle allocation in the render loop.
+ */
+export function drift(p: Particle, t: number, out: DriftTarget = makeDriftTarget()): DriftTarget {
+  out.driftX = p.hx + Math.sin(t * p.freq + p.phase) * p.ampX;
+  out.driftY = p.hy + Math.cos(t * p.freq * 0.8 + p.phase * 1.3) * p.ampY;
+  return out;
 }
 
 export interface Repulsion {
@@ -67,9 +75,15 @@ export interface Repulsion {
   proximity: number;
 }
 
+/** Create a zeroed Repulsion for reuse across frames. */
+export function makeRepulsion(): Repulsion {
+  return { targetX: 0, targetY: 0, proximity: 0 };
+}
+
 /**
  * Given a particle's drift target and the cursor position, compute the
- * repelled target and proximity. `mx < -9000` means "no cursor".
+ * repelled target and proximity into `out`. `mx < -9000` means "no cursor".
+ * Returns `out` for reuse across frames.
  */
 export function repel(
   p: Particle,
@@ -77,10 +91,11 @@ export function repel(
   driftY: number,
   mx: number,
   my: number,
+  out: Repulsion = makeRepulsion(),
 ): Repulsion {
-  let targetX = driftX;
-  let targetY = driftY;
-  let proximity = 0;
+  out.targetX = driftX;
+  out.targetY = driftY;
+  out.proximity = 0;
 
   if (mx > -9000) {
     const dx = p.x - mx;
@@ -88,14 +103,15 @@ export function repel(
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     if (dist < REPEL_RADIUS && dist > 0) {
-      proximity = 1 - dist / REPEL_RADIUS;
+      const proximity = 1 - dist / REPEL_RADIUS;
       const push = proximity * MAX_DISPLACE;
-      targetX = driftX + (dx / dist) * push;
-      targetY = driftY + (dy / dist) * push;
+      out.proximity = proximity;
+      out.targetX = driftX + (dx / dist) * push;
+      out.targetY = driftY + (dy / dist) * push;
     }
   }
 
-  return { targetX, targetY, proximity };
+  return out;
 }
 
 /** Advance a particle toward its target in-place. Fleeing is faster than return. */
@@ -114,14 +130,25 @@ export interface ParticleStyle {
   goldAlpha: number;
 }
 
-/** Colour/size for a particle given its cursor proximity. */
-export function particleStyle(p: Particle, proximity: number): ParticleStyle {
-  return {
-    alpha: lerp(0.45, 0.9, proximity),
-    hue: lerp(210, 195, proximity),
-    sat: lerp(35, 70, proximity),
-    lum: lerp(28, 72, proximity),
-    radius: p.r * lerp(1, 1.6, proximity),
-    goldAlpha: lerp(0.7, 1.0, proximity),
-  };
+/** Create a zeroed ParticleStyle for reuse across frames. */
+export function makeParticleStyle(): ParticleStyle {
+  return { alpha: 0, hue: 0, sat: 0, lum: 0, radius: 0, goldAlpha: 0 };
+}
+
+/**
+ * Colour/size for a particle given its cursor proximity, written into `out`.
+ * Returns `out` for reuse across frames.
+ */
+export function particleStyle(
+  p: Particle,
+  proximity: number,
+  out: ParticleStyle = makeParticleStyle(),
+): ParticleStyle {
+  out.alpha = lerp(0.45, 0.9, proximity);
+  out.hue = lerp(210, 195, proximity);
+  out.sat = lerp(35, 70, proximity);
+  out.lum = lerp(28, 72, proximity);
+  out.radius = p.r * lerp(1, 1.6, proximity);
+  out.goldAlpha = lerp(0.7, 1.0, proximity);
+  return out;
 }

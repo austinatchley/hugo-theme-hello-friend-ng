@@ -34,43 +34,51 @@
     }
     return particles;
   }
-  function drift(p, t) {
-    return {
-      driftX: p.hx + Math.sin(t * p.freq + p.phase) * p.ampX,
-      driftY: p.hy + Math.cos(t * p.freq * 0.8 + p.phase * 1.3) * p.ampY
-    };
+  function makeDriftTarget() {
+    return { driftX: 0, driftY: 0 };
   }
-  function repel(p, driftX, driftY, mx, my) {
-    let targetX = driftX;
-    let targetY = driftY;
-    let proximity = 0;
+  function drift(p, t, out = makeDriftTarget()) {
+    out.driftX = p.hx + Math.sin(t * p.freq + p.phase) * p.ampX;
+    out.driftY = p.hy + Math.cos(t * p.freq * 0.8 + p.phase * 1.3) * p.ampY;
+    return out;
+  }
+  function makeRepulsion() {
+    return { targetX: 0, targetY: 0, proximity: 0 };
+  }
+  function repel(p, driftX, driftY, mx, my, out = makeRepulsion()) {
+    out.targetX = driftX;
+    out.targetY = driftY;
+    out.proximity = 0;
     if (mx > -9e3) {
       const dx = p.x - mx;
       const dy = p.y - my;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist < REPEL_RADIUS && dist > 0) {
-        proximity = 1 - dist / REPEL_RADIUS;
+        const proximity = 1 - dist / REPEL_RADIUS;
         const push = proximity * MAX_DISPLACE;
-        targetX = driftX + dx / dist * push;
-        targetY = driftY + dy / dist * push;
+        out.proximity = proximity;
+        out.targetX = driftX + dx / dist * push;
+        out.targetY = driftY + dy / dist * push;
       }
     }
-    return { targetX, targetY, proximity };
+    return out;
   }
   function stepParticle(p, r) {
     const k = r.proximity > 0 ? LERP_FLEE : LERP_RETURN;
     p.x = lerp(p.x, r.targetX, k);
     p.y = lerp(p.y, r.targetY, k);
   }
-  function particleStyle(p, proximity) {
-    return {
-      alpha: lerp(0.45, 0.9, proximity),
-      hue: lerp(210, 195, proximity),
-      sat: lerp(35, 70, proximity),
-      lum: lerp(28, 72, proximity),
-      radius: p.r * lerp(1, 1.6, proximity),
-      goldAlpha: lerp(0.7, 1, proximity)
-    };
+  function makeParticleStyle() {
+    return { alpha: 0, hue: 0, sat: 0, lum: 0, radius: 0, goldAlpha: 0 };
+  }
+  function particleStyle(p, proximity, out = makeParticleStyle()) {
+    out.alpha = lerp(0.45, 0.9, proximity);
+    out.hue = lerp(210, 195, proximity);
+    out.sat = lerp(35, 70, proximity);
+    out.lum = lerp(28, 72, proximity);
+    out.radius = p.r * lerp(1, 1.6, proximity);
+    out.goldAlpha = lerp(0.7, 1, proximity);
+    return out;
   }
 
   // src/entries/particles.ts
@@ -107,6 +115,9 @@
     let t = 0;
     let lastTime = null;
     let raf = null;
+    const driftOut = makeDriftTarget();
+    const repelOut = makeRepulsion();
+    const styleOut = makeParticleStyle();
     function loop(now) {
       raf = requestAnimationFrame(loop);
       if (!lastTime) lastTime = now;
@@ -116,10 +127,10 @@
       ctx.clearRect(0, 0, W, H);
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
-        const { driftX, driftY } = drift(p, t);
-        const r = repel(p, driftX, driftY, mx, my);
+        drift(p, t, driftOut);
+        const r = repel(p, driftOut.driftX, driftOut.driftY, mx, my, repelOut);
         stepParticle(p, r);
-        const style = particleStyle(p, r.proximity);
+        const style = particleStyle(p, r.proximity, styleOut);
         const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, style.radius);
         grad.addColorStop(0, "hsla(48,100%,78%," + style.goldAlpha + ")");
         grad.addColorStop(

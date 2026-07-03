@@ -6,6 +6,9 @@ import {
   type Particle,
   initParticles,
   makeParticle,
+  makeDriftTarget,
+  makeRepulsion,
+  makeParticleStyle,
   drift,
   repel,
   stepParticle,
@@ -113,5 +116,74 @@ describe("particleStyle", () => {
     expect(near.alpha).toBeGreaterThan(far.alpha);
     expect(near.radius).toBeGreaterThan(far.radius);
     expect(near.hue).toBeLessThan(far.hue); // 210 → 195
+  });
+});
+
+describe("scratch-object reuse (allocation-free hot loop)", () => {
+  it("drift writes into the provided out-object and returns it", () => {
+    const p = baseParticle({ phase: 0.4 });
+    const out = makeDriftTarget();
+    const ret = drift(p, 1.23, out);
+    expect(ret).toBe(out); // same reference — no allocation
+  });
+
+  it("repel writes into the provided out-object and returns it", () => {
+    const p = baseParticle({ x: 100, y: 100 });
+    const out = makeRepulsion();
+    const ret = repel(p, 100, 100, 95, 100, out);
+    expect(ret).toBe(out);
+  });
+
+  it("particleStyle writes into the provided out-object and returns it", () => {
+    const p = baseParticle();
+    const out = makeParticleStyle();
+    const ret = particleStyle(p, 0.5, out);
+    expect(ret).toBe(out);
+  });
+
+  it("produces identical values whether allocating or reusing a scratch object", () => {
+    const p = baseParticle({ phase: 0.7, freq: 0.3 });
+    const t = 2.5;
+    const mx = 90;
+    const my = 105;
+
+    // Fresh-allocation path (default params).
+    const dFresh = drift(p, t);
+    const rFresh = repel(p, dFresh.driftX, dFresh.driftY, mx, my);
+    const sFresh = particleStyle(p, rFresh.proximity);
+
+    // Reused-scratch path.
+    const dOut = makeDriftTarget();
+    const rOut = makeRepulsion();
+    const sOut = makeParticleStyle();
+    drift(p, t, dOut);
+    repel(p, dOut.driftX, dOut.driftY, mx, my, rOut);
+    particleStyle(p, rOut.proximity, sOut);
+
+    expect(dOut).toEqual(dFresh);
+    expect(rOut).toEqual(rFresh);
+    expect(sOut).toEqual(sFresh);
+  });
+
+  it("reusing one scratch trio across many particles stays correct per-particle", () => {
+    const particles = initParticles(800, 600, (() => {
+      let n = 0;
+      return () => ((n = (n + 0.137) % 1), n);
+    })());
+    const dOut = makeDriftTarget();
+    const rOut = makeRepulsion();
+    const sOut = makeParticleStyle();
+
+    for (const p of particles) {
+      drift(p, 3.14, dOut);
+      const r = repel(p, dOut.driftX, dOut.driftY, 400, 300, rOut);
+      // The returned repulsion must reflect THIS particle, not a stale one.
+      const expected = repel(p, dOut.driftX, dOut.driftY, 400, 300);
+      expect(r.targetX).toBeCloseTo(expected.targetX);
+      expect(r.targetY).toBeCloseTo(expected.targetY);
+      expect(r.proximity).toBeCloseTo(expected.proximity);
+      particleStyle(p, r.proximity, sOut);
+      expect(sOut.radius).toBeCloseTo(particleStyle(p, r.proximity).radius);
+    }
   });
 });

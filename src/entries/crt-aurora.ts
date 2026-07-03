@@ -2,7 +2,7 @@
  * crt-aurora — CRT scanline + aurora background. Loaded with `defer` only on
  * the home page via layouts/partials/extra-head.html.
  */
-import { sampleSpectrum } from "../lib/spectrum.js";
+import { auroraColumn } from "../lib/spectrum.js";
 
 (function () {
   "use strict";
@@ -41,32 +41,28 @@ import { sampleSpectrum } from "../lib/spectrum.js";
 
   function drawAurora(): void {
     const segments = 14;
+    const bandH = H * 0.36;
 
     ctx!.globalCompositeOperation = "screen";
     for (let b = 0; b < BANDS.length; b++) {
       const band = BANDS[b];
       const centreY = H * (band.yFrac + Math.sin(t * band.speed * 0.7 + b * 2.3) * band.amp);
-      const bandH = H * 0.36;
       const top = centreY - bandH / 2;
+      const bottom = top + bandH;
 
       // Horizontal colour gradient — one strip per segment column.
       for (let s = 0; s < segments; s++) {
         const x0 = (s / segments) * W;
         const x1 = ((s + 1) / segments) * W;
         const xMid = (s + 0.5) / segments;
-        const phase = xMid * Math.PI * 2.8 + t * band.xSpeed;
-        const v = Math.sin(phase) * 0.5 + 0.5;
-        const specPos = (phase * 0.18 / (Math.PI * 2) + band.offset) % 1;
-        const finalHue = sampleSpectrum(specPos);
-        const finalSat = 65 + v * 25;
-        const peakAlpha = v * 0.13;
+        const col = auroraColumn(xMid, band.xSpeed, band.offset, t);
 
         // Vertical fade: transparent → full at centre → transparent.
-        const vGrad = ctx!.createLinearGradient(0, top, 0, top + bandH);
-        vGrad.addColorStop(0, "hsla(" + finalHue + "," + finalSat + "%,60%,0)");
-        vGrad.addColorStop(0.35, "hsla(" + finalHue + "," + finalSat + "%,60%," + peakAlpha + ")");
-        vGrad.addColorStop(0.65, "hsla(" + finalHue + "," + finalSat + "%,60%," + peakAlpha + ")");
-        vGrad.addColorStop(1, "hsla(" + finalHue + "," + finalSat + "%,60%,0)");
+        const vGrad = ctx!.createLinearGradient(0, top, 0, bottom);
+        vGrad.addColorStop(0, col.edge);
+        vGrad.addColorStop(0.35, col.peak);
+        vGrad.addColorStop(0.65, col.peak);
+        vGrad.addColorStop(1, col.edge);
 
         ctx!.fillStyle = vGrad;
         ctx!.fillRect(x0, top, x1 - x0, bandH);
@@ -76,14 +72,30 @@ import { sampleSpectrum } from "../lib/spectrum.js";
   }
 
   // ── Scanlines ─────────────────────────────────────────────────────────────
+  // The scanline stripes are static (a 1px dark row every 3px), so we bake a
+  // 1×3 tile once and paint it as a repeating pattern each frame — one fill
+  // instead of ~H/3 individual fillRect calls.
+  let scanlinePattern: CanvasPattern | null = null;
+
+  function buildScanlinePattern(): void {
+    const tile = document.createElement("canvas");
+    tile.width = 1;
+    tile.height = 3;
+    const tctx = tile.getContext("2d");
+    if (!tctx) return;
+    tctx.fillStyle = "rgba(0,0,0,0.55)";
+    tctx.fillRect(0, 0, 1, 1); // dark row; rows 1–2 stay transparent
+    scanlinePattern = ctx!.createPattern(tile, "repeat");
+  }
+
   function drawScanlines(): void {
     // multiply darkens only the stripe rows, preserving the colour underneath
-    ctx!.globalCompositeOperation = "multiply";
-    ctx!.fillStyle = "rgba(0,0,0,0.55)";
-    for (let y = 0; y < H; y += 3) {
-      ctx!.fillRect(0, y, W, 1);
+    if (scanlinePattern) {
+      ctx!.globalCompositeOperation = "multiply";
+      ctx!.fillStyle = scanlinePattern;
+      ctx!.fillRect(0, 0, W, H);
+      ctx!.globalCompositeOperation = "source-over";
     }
-    ctx!.globalCompositeOperation = "source-over";
 
     // Slow vertical roll — a faint lighter band drifting downward.
     const rollY = ((t * 38) % (H + 100)) - 50;
@@ -159,5 +171,6 @@ import { sampleSpectrum } from "../lib/spectrum.js";
 
   // ── Boot ──────────────────────────────────────────────────────────────────
   resize();
+  buildScanlinePattern();
   requestAnimationFrame(loop);
 })();

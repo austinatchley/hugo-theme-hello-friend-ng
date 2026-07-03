@@ -25,6 +25,19 @@
     const frac = idx - lo;
     return SPECTRUM[lo] + (SPECTRUM[lo + 1] - SPECTRUM[lo]) * frac;
   }
+  function auroraColumn(xMid, xSpeed, offset, t) {
+    const phase = xMid * Math.PI * 2.8 + t * xSpeed;
+    const v = Math.sin(phase) * 0.5 + 0.5;
+    const specPos = (phase * 0.18 / (Math.PI * 2) + offset) % 1;
+    const finalHue = sampleSpectrum(specPos);
+    const finalSat = 65 + v * 25;
+    const peakAlpha = v * 0.13;
+    const prefix = "hsla(" + finalHue + "," + finalSat + "%,60%,";
+    return {
+      edge: prefix + "0)",
+      peak: prefix + peakAlpha + ")"
+    };
+  }
 
   // src/entries/crt-aurora.ts
   (function() {
@@ -46,40 +59,47 @@
     ];
     function drawAurora() {
       const segments = 14;
+      const bandH = H * 0.36;
       ctx.globalCompositeOperation = "screen";
       for (let b = 0; b < BANDS.length; b++) {
         const band = BANDS[b];
         const centreY = H * (band.yFrac + Math.sin(t * band.speed * 0.7 + b * 2.3) * band.amp);
-        const bandH = H * 0.36;
         const top = centreY - bandH / 2;
+        const bottom = top + bandH;
         for (let s = 0; s < segments; s++) {
           const x0 = s / segments * W;
           const x1 = (s + 1) / segments * W;
           const xMid = (s + 0.5) / segments;
-          const phase = xMid * Math.PI * 2.8 + t * band.xSpeed;
-          const v = Math.sin(phase) * 0.5 + 0.5;
-          const specPos = (phase * 0.18 / (Math.PI * 2) + band.offset) % 1;
-          const finalHue = sampleSpectrum(specPos);
-          const finalSat = 65 + v * 25;
-          const peakAlpha = v * 0.13;
-          const vGrad = ctx.createLinearGradient(0, top, 0, top + bandH);
-          vGrad.addColorStop(0, "hsla(" + finalHue + "," + finalSat + "%,60%,0)");
-          vGrad.addColorStop(0.35, "hsla(" + finalHue + "," + finalSat + "%,60%," + peakAlpha + ")");
-          vGrad.addColorStop(0.65, "hsla(" + finalHue + "," + finalSat + "%,60%," + peakAlpha + ")");
-          vGrad.addColorStop(1, "hsla(" + finalHue + "," + finalSat + "%,60%,0)");
+          const col = auroraColumn(xMid, band.xSpeed, band.offset, t);
+          const vGrad = ctx.createLinearGradient(0, top, 0, bottom);
+          vGrad.addColorStop(0, col.edge);
+          vGrad.addColorStop(0.35, col.peak);
+          vGrad.addColorStop(0.65, col.peak);
+          vGrad.addColorStop(1, col.edge);
           ctx.fillStyle = vGrad;
           ctx.fillRect(x0, top, x1 - x0, bandH);
         }
       }
       ctx.globalCompositeOperation = "source-over";
     }
+    let scanlinePattern = null;
+    function buildScanlinePattern() {
+      const tile = document.createElement("canvas");
+      tile.width = 1;
+      tile.height = 3;
+      const tctx = tile.getContext("2d");
+      if (!tctx) return;
+      tctx.fillStyle = "rgba(0,0,0,0.55)";
+      tctx.fillRect(0, 0, 1, 1);
+      scanlinePattern = ctx.createPattern(tile, "repeat");
+    }
     function drawScanlines() {
-      ctx.globalCompositeOperation = "multiply";
-      ctx.fillStyle = "rgba(0,0,0,0.55)";
-      for (let y = 0; y < H; y += 3) {
-        ctx.fillRect(0, y, W, 1);
+      if (scanlinePattern) {
+        ctx.globalCompositeOperation = "multiply";
+        ctx.fillStyle = scanlinePattern;
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalCompositeOperation = "source-over";
       }
-      ctx.globalCompositeOperation = "source-over";
       const rollY = t * 38 % (H + 100) - 50;
       const rollGrad = ctx.createLinearGradient(0, rollY, 0, rollY + 100);
       rollGrad.addColorStop(0, "rgba(255,255,255,0)");
@@ -134,6 +154,7 @@
       }
     });
     resize();
+    buildScanlinePattern();
     requestAnimationFrame(loop);
   })();
 })();

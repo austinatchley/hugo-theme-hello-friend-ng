@@ -5,7 +5,13 @@
  */
 import {
   type Particle,
+  type DriftTarget,
+  type Repulsion,
+  type ParticleStyle,
   initParticles,
+  makeDriftTarget,
+  makeRepulsion,
+  makeParticleStyle,
   drift,
   repel,
   stepParticle,
@@ -62,6 +68,11 @@ import {
   let lastTime: number | null = null;
   let raf: number | null = null;
 
+  // Scratch objects reused every frame to avoid per-particle allocation.
+  const driftOut: DriftTarget = makeDriftTarget();
+  const repelOut: Repulsion = makeRepulsion();
+  const styleOut: ParticleStyle = makeParticleStyle();
+
   function loop(now: number): void {
     raf = requestAnimationFrame(loop);
     if (!lastTime) lastTime = now;
@@ -74,11 +85,11 @@ import {
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
 
-      const { driftX, driftY } = drift(p, t);
-      const r = repel(p, driftX, driftY, mx, my);
+      drift(p, t, driftOut);
+      const r = repel(p, driftOut.driftX, driftOut.driftY, mx, my, repelOut);
       stepParticle(p, r);
 
-      const style = particleStyle(p, r.proximity);
+      const style = particleStyle(p, r.proximity, styleOut);
 
       // Radial gradient: gold pinpoint core → teal/blue body → transparent.
       const grad = ctx!.createRadialGradient(p.x, p.y, 0, p.x, p.y, style.radius);
