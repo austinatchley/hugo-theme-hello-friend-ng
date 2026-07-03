@@ -112,33 +112,168 @@
     let t = 0;
     let raf = null;
     let lastTime = null;
-    const BANDS = [
-      { speed: 0.26, xSpeed: 1.1, yFrac: 0.1, amp: 0.06, offset: Math.random() },
-      { speed: 0.18, xSpeed: 0.8, yFrac: 0.37, amp: 0.05, offset: Math.random() },
-      { speed: 0.22, xSpeed: 1.3, yFrac: 0.63, amp: 0.07, offset: Math.random() },
-      { speed: 0.21, xSpeed: 0.9, yFrac: 0.88, amp: 0.06, offset: Math.random() }
+    let frameCount = 0;
+    const DEFAULT_BANDS = [
+      { speed: 0.26, xSpeed: 1.1, yFrac: 0.08, amp: 0.06 },
+      { speed: 0.18, xSpeed: 0.8, yFrac: 0.26, amp: 0.05 },
+      { speed: 0.22, xSpeed: 1.3, yFrac: 0.44, amp: 0.07 },
+      { speed: 0.21, xSpeed: 0.9, yFrac: 0.62, amp: 0.06 },
+      { speed: 0.24, xSpeed: 1.2, yFrac: 0.8, amp: 0.05 },
+      { speed: 0.19, xSpeed: 0.7, yFrac: 0.92, amp: 0.04 }
     ];
+    const AURORA_STORAGE_KEY = "aurora_state";
+    function detectQuality() {
+      try {
+        const q = new URLSearchParams(location.search).get("quality");
+        if (q === "low" || q === "medium" || q === "high") return q;
+      } catch {
+      }
+      try {
+        if (matchMedia("(prefers-reduced-motion: reduce)").matches) return "low";
+      } catch {
+      }
+      return "high";
+    }
+    const QUALITY = detectQuality();
+    const QUALITY_PRESETS = {
+      high: { bandCount: 6, segments: 20, noiseEnabled: true, scanlinesEnabled: true, glitchEnabled: true },
+      medium: { bandCount: 4, segments: 14, noiseEnabled: false, scanlinesEnabled: true, glitchEnabled: true },
+      low: { bandCount: 2, segments: 10, noiseEnabled: false, scanlinesEnabled: false, glitchEnabled: false }
+    };
+    function buildConfig() {
+      const params = new URLSearchParams(location.search);
+      const getFloat = (key, fallback) => {
+        const v = params.get(key);
+        return v !== null ? parseFloat(v) : fallback;
+      };
+      const getInt = (key, fallback) => {
+        const v = params.get(key);
+        return v !== null ? parseInt(v, 10) : fallback;
+      };
+      const getStr = (key, fallback) => params.get(key) ?? fallback;
+      const bands = DEFAULT_BANDS.map((b) => ({ ...b, offset: 0 }));
+      return {
+        bands,
+        segments: getInt("segments", QUALITY_PRESETS[QUALITY].segments),
+        bandHeight: getFloat("bandHeight", 0.6),
+        yJitterAmp: getFloat("yJitterAmp", 0.02),
+        yJitterSpeed: getFloat("yJitterSpeed", 0.43),
+        segmentJitterAmp: getFloat("segmentJitterAmp", 0.04),
+        segmentJitterSpeed: getFloat("segmentJitterSpeed", 0.6),
+        noiseOpacity: getFloat("noiseOpacity", 0.08),
+        noiseTileSize: getInt("noiseTileSize", 256),
+        scanlineOpacity: getFloat("scanlineOpacity", 0.55),
+        scanlineSpacing: getInt("scanlineSpacing", 3),
+        rollSpeed: getFloat("rollSpeed", 38),
+        rollHeight: getInt("rollHeight", 100),
+        glitchCooldownMin: getFloat("glitchCooldownMin", 3.5),
+        glitchCooldownMax: getFloat("glitchCooldownMax", 5),
+        glitchShiftMax: getFloat("glitchShiftMax", 16),
+        glitchHeightMax: getInt("glitchHeightMax", 2),
+        backgroundColor: getStr("bgColor", "#15202b")
+      };
+    }
+    const CFG = buildConfig();
+    let QP = { ...QUALITY_PRESETS[QUALITY] };
+    let currentQuality = QUALITY;
+    const QUALITY_ORDER = ["high", "medium", "low"];
+    function checkFrameBudget() {
+      if (currentQuality === "low") return;
+      const s = meter.stats();
+      if (!s || s.count < 60) return;
+      const threshold = currentQuality === "high" ? 16 : 20;
+      if (s.p95 > threshold) {
+        const idx = QUALITY_ORDER.indexOf(currentQuality);
+        if (idx < QUALITY_ORDER.length - 1) {
+          currentQuality = QUALITY_ORDER[idx + 1];
+          QP = { ...QUALITY_PRESETS[currentQuality] };
+        }
+      }
+    }
+    function restoreAuroraState() {
+      try {
+        const nav = performance.getEntriesByType("navigation")[0];
+        if (nav && nav.type === "reload") {
+          localStorage.removeItem(AURORA_STORAGE_KEY);
+          randomizeOffsets();
+          return;
+        }
+      } catch {
+      }
+      const saved = localStorage.getItem(AURORA_STORAGE_KEY);
+      if (saved) {
+        try {
+          const state = JSON.parse(saved);
+          const offsets = state.offsets;
+          for (let i = 0; i < CFG.bands.length && i < offsets.length; i++) {
+            CFG.bands[i].offset = offsets[i];
+          }
+          t = state.time || 0;
+          return;
+        } catch {
+          localStorage.removeItem(AURORA_STORAGE_KEY);
+        }
+      }
+      randomizeOffsets();
+    }
+    function randomizeOffsets() {
+      for (const band of CFG.bands) {
+        band.offset = Math.random();
+      }
+    }
+    function saveAuroraState() {
+      try {
+        const state = {
+          offsets: CFG.bands.map((b) => b.offset),
+          time: t
+        };
+        localStorage.setItem(AURORA_STORAGE_KEY, JSON.stringify(state));
+      } catch {
+      }
+    }
+    const BANDS = CFG.bands;
+    const vGradCache = [];
+    for (let i = 0; i < BANDS.length; i++) {
+      vGradCache.push({ top: -9999, gradient: ctx.createLinearGradient(0, 0, 0, 1) });
+    }
     function drawAurora() {
-      const segments = 20;
-      const bandH = H * 0.36;
+      const segments = QP.segments;
+      const bandCount = Math.min(QP.bandCount, BANDS.length);
+      const bandH = H * CFG.bandHeight;
       ctx.globalCompositeOperation = "screen";
-      for (let b = 0; b < BANDS.length; b++) {
+      for (let b = 0; b < bandCount; b++) {
         const band = BANDS[b];
-        const centreY = H * (band.yFrac + Math.sin(t * band.speed * 0.7 + b * 2.3) * band.amp);
+        const yJitter = Math.sin(t * CFG.yJitterSpeed + b * 1.7) * CFG.yJitterAmp;
+        const centreY = H * (band.yFrac + yJitter + Math.sin(t * band.speed * 0.7 + b * 2.3) * band.amp);
         const top = centreY - bandH / 2;
         const bottom = top + bandH;
-        const hGrad = ctx.createLinearGradient(0, top, W, top);
+        const stops = [];
         for (let s = 0; s < segments; s++) {
-          const xMid = (s + 0.5) / segments;
+          const base = s / segments;
+          const jitter = Math.sin(t * CFG.segmentJitterSpeed + s * 1.1 + b * 0.9) * CFG.segmentJitterAmp;
+          const pos = Math.max(0, Math.min(1, base + jitter));
+          const xMid = (pos + (s + 0.5) / segments) / 2;
           const col = auroraColumn(xMid, band.xSpeed, band.offset, t);
-          hGrad.addColorStop(s / segments, col.peak);
+          stops.push({ pos, col: col.peak });
         }
-        hGrad.addColorStop(1, auroraColumn(1, band.xSpeed, band.offset, t).peak);
-        const vGrad = ctx.createLinearGradient(0, top, 0, bottom);
-        vGrad.addColorStop(0, "rgba(255,255,255,0)");
-        vGrad.addColorStop(0.35, "rgba(255,255,255,1)");
-        vGrad.addColorStop(0.65, "rgba(255,255,255,1)");
-        vGrad.addColorStop(1, "rgba(255,255,255,0)");
+        stops.push({ pos: 1, col: auroraColumn(1, band.xSpeed, band.offset, t).peak });
+        const hGrad = ctx.createLinearGradient(0, top, W, top);
+        for (const st of stops) {
+          hGrad.addColorStop(st.pos, st.col);
+        }
+        const cached = vGradCache[b];
+        let vGrad;
+        if (Math.abs(cached.top - top) > 1) {
+          vGrad = ctx.createLinearGradient(0, top, 0, bottom);
+          vGrad.addColorStop(0, "rgba(255,255,255,0)");
+          vGrad.addColorStop(0.35, "rgba(255,255,255,1)");
+          vGrad.addColorStop(0.65, "rgba(255,255,255,1)");
+          vGrad.addColorStop(1, "rgba(255,255,255,0)");
+          cached.top = top;
+          cached.gradient = vGrad;
+        } else {
+          vGrad = cached.gradient;
+        }
         ctx.save();
         ctx.beginPath();
         ctx.rect(0, top, W, bandH);
@@ -153,6 +288,29 @@
       }
       ctx.globalCompositeOperation = "source-over";
     }
+    function injectNoiseOverlay() {
+      if (!QP.noiseEnabled) return;
+      const nc = document.createElement("canvas");
+      const nw = CFG.noiseTileSize;
+      const nh = CFG.noiseTileSize;
+      nc.width = nw;
+      nc.height = nh;
+      const nctx = nc.getContext("2d");
+      const img = nctx.createImageData(nw, nh);
+      const d = img.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const v = Math.random() * 255;
+        d[i] = v;
+        d[i + 1] = v;
+        d[i + 2] = v;
+        d[i + 3] = 30 + Math.random() * 40;
+      }
+      nctx.putImageData(img, 0, 0);
+      const dataUrl = nc.toDataURL("image/png");
+      const div = document.createElement("div");
+      div.style.cssText = "position:fixed;inset:0;z-index:900;pointer-events:none;background-image:url('" + dataUrl + "');background-repeat:repeat;background-size:" + nw + "px " + nh + "px;opacity:" + CFG.noiseOpacity + ";mix-blend-mode:overlay;";
+      document.body.appendChild(div);
+    }
     let scanlineMode = "rows";
     try {
       const m = new URLSearchParams(location.search).get("scanlines");
@@ -163,10 +321,10 @@
     function buildScanlinePattern() {
       const tile = document.createElement("canvas");
       tile.width = 1;
-      tile.height = 3;
+      tile.height = CFG.scanlineSpacing;
       const tctx = tile.getContext("2d");
       if (!tctx) return;
-      tctx.fillStyle = "rgba(0,0,0,0.55)";
+      tctx.fillStyle = "rgba(0,0,0," + CFG.scanlineOpacity + ")";
       tctx.fillRect(0, 0, 1, 1);
       scanlinePattern = ctx.createPattern(tile, "repeat");
     }
@@ -176,28 +334,28 @@
         ctx.fillStyle = scanlinePattern;
         ctx.fillRect(0, 0, W, H);
       } else {
-        ctx.fillStyle = "rgba(0,0,0,0.55)";
-        for (let y = 0; y < H; y += 3) {
+        ctx.fillStyle = "rgba(0,0,0," + CFG.scanlineOpacity + ")";
+        for (let y = 0; y < H; y += CFG.scanlineSpacing) {
           ctx.fillRect(0, y, W, 1);
         }
       }
       ctx.globalCompositeOperation = "source-over";
-      const rollY = t * 38 % (H + 100) - 50;
-      const rollGrad = ctx.createLinearGradient(0, rollY, 0, rollY + 100);
+      const rollY = t * CFG.rollSpeed % (H + 100) - 50;
+      const rollGrad = ctx.createLinearGradient(0, rollY, 0, rollY + CFG.rollHeight);
       rollGrad.addColorStop(0, "rgba(255,255,255,0)");
       rollGrad.addColorStop(0.5, "rgba(255,255,255,0.015)");
       rollGrad.addColorStop(1, "rgba(255,255,255,0)");
       ctx.fillStyle = rollGrad;
-      ctx.fillRect(0, rollY, W, 100);
+      ctx.fillRect(0, rollY, W, CFG.rollHeight);
     }
     let glitchCooldown = 4;
     function maybeGlitch(dt) {
       glitchCooldown -= dt;
       if (glitchCooldown > 0) return;
-      glitchCooldown = 3.5 + Math.random() * 5;
+      glitchCooldown = CFG.glitchCooldownMin + Math.random() * (CFG.glitchCooldownMax - CFG.glitchCooldownMin);
       const lineY = Math.floor(Math.random() * H);
-      const lineH = Math.floor(Math.random() * 2) + 1;
-      const shift = (Math.random() - 0.5) * 16;
+      const lineH = Math.floor(Math.random() * CFG.glitchHeightMax) + 1;
+      const shift = (Math.random() - 0.5) * CFG.glitchShiftMax;
       try {
         const slice = ctx.getImageData(0, lineY, W, lineH);
         ctx.putImageData(slice, shift, lineY);
@@ -207,6 +365,7 @@
     function resize() {
       W = canvas.width = window.innerWidth;
       H = canvas.height = window.innerHeight;
+      for (const c of vGradCache) c.top = -9999;
     }
     let resizeTimer;
     window.addEventListener("resize", function() {
@@ -229,14 +388,16 @@
       const dt = Math.min((now - lastTime) / 1e3, 0.05);
       lastTime = now;
       t += dt;
+      frameCount++;
       const workStart = performance.now();
       ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = "#15202b";
+      ctx.fillStyle = CFG.backgroundColor;
       ctx.fillRect(0, 0, W, H);
       drawAurora();
-      drawScanlines();
-      maybeGlitch(dt);
+      if (QP.scanlinesEnabled) drawScanlines();
+      if (QP.glitchEnabled) maybeGlitch(dt);
       meter.record(performance.now() - workStart);
+      if (frameCount % 60 === 0) checkFrameBudget();
       if (hudOn && hud) {
         hudCooldown -= dt;
         if (hudCooldown <= 0) {
@@ -248,6 +409,7 @@
         }
       }
     }
+    window.addEventListener("pagehide", saveAuroraState);
     document.addEventListener("visibilitychange", function() {
       if (document.hidden) {
         if (raf !== null) cancelAnimationFrame(raf);
@@ -258,6 +420,8 @@
       }
     });
     resize();
+    restoreAuroraState();
+    injectNoiseOverlay();
     buildScanlinePattern();
     requestAnimationFrame(loop);
     window.__auroraMeter = meter;
