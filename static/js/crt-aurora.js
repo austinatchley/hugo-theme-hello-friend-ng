@@ -136,9 +136,9 @@
     }
     const QUALITY = detectQuality();
     const QUALITY_PRESETS = {
-      high: { bandCount: 6, segments: 20, noiseEnabled: true, scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: false },
-      medium: { bandCount: 4, segments: 14, noiseEnabled: false, scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: false },
-      low: { bandCount: 2, segments: 10, noiseEnabled: false, scanlinesEnabled: false, glitchEnabled: false, ditherEnabled: false }
+      high: { bandCount: 6, segments: 20, noiseEnabled: true, scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: true },
+      medium: { bandCount: 4, segments: 14, noiseEnabled: false, scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: true },
+      low: { bandCount: 2, segments: 10, noiseEnabled: false, scanlinesEnabled: false, glitchEnabled: false, ditherEnabled: true }
     };
     function buildConfig() {
       const params = new URLSearchParams(location.search);
@@ -376,32 +376,51 @@
       c.fillStyle = rollGrad;
       c.fillRect(0, rollY, W, CFG.rollHeight);
     }
-    const BAYER4 = [
-      [0, 8, 2, 10],
-      [12, 4, 14, 6],
-      [3, 11, 1, 9],
-      [15, 7, 13, 5]
-    ];
     function drawDither() {
       const data = ctx.getImageData(0, 0, W, H);
       const d = data.data;
+      const rStep = 255 / 7;
+      const gStep = 255 / 7;
+      const bStep = 255 / 3;
       for (let y = 0; y < H; y++) {
-        const by = y & 3;
         for (let x = 0; x < W; x++) {
           const i = (y * W + x) * 4;
-          const th = (BAYER4[by][x & 3] + 0.5) / 16;
-          const r = d[i];
-          let rq = r / 32 | 0;
-          if (r % 32 / 32 > th) rq = Math.min(rq + 1, 7);
-          d[i] = rq * 32;
-          const g = d[i + 1];
-          let gq = g / 32 | 0;
-          if (g % 32 / 32 > th) gq = Math.min(gq + 1, 7);
-          d[i + 1] = gq * 32;
-          const b = d[i + 2];
-          let bq = b / 64 | 0;
-          if (b % 64 / 64 > th) bq = Math.min(bq + 1, 3);
-          d[i + 2] = bq * 64;
+          const oldR = d[i];
+          const oldG = d[i + 1];
+          const oldB = d[i + 2];
+          const newR = Math.round(oldR / rStep) * rStep;
+          const newG = Math.round(oldG / gStep) * gStep;
+          const newB = Math.round(oldB / bStep) * bStep;
+          d[i] = newR;
+          d[i + 1] = newG;
+          d[i + 2] = newB;
+          const errR = (oldR - newR) * 0.3;
+          const errG = (oldG - newG) * 0.3;
+          const errB = (oldB - newB) * 0.3;
+          if (x + 1 < W) {
+            const ri = i + 4;
+            d[ri] += errR * 7 / 16;
+            d[ri + 1] += errG * 7 / 16;
+            d[ri + 2] += errB * 7 / 16;
+          }
+          if (x > 0 && y + 1 < H) {
+            const li = i + W * 4 - 4;
+            d[li] += errR * 3 / 16;
+            d[li + 1] += errG * 3 / 16;
+            d[li + 2] += errB * 3 / 16;
+          }
+          if (y + 1 < H) {
+            const di = i + W * 4;
+            d[di] += errR * 5 / 16;
+            d[di + 1] += errG * 5 / 16;
+            d[di + 2] += errB * 5 / 16;
+          }
+          if (x + 1 < W && y + 1 < H) {
+            const ri = i + W * 4 + 4;
+            d[ri] += errR * 1 / 16;
+            d[ri + 1] += errG * 1 / 16;
+            d[ri + 2] += errB * 1 / 16;
+          }
         }
       }
       ctx.putImageData(data, 0, 0);
