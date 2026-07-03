@@ -58,6 +58,8 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     { speed: 0.19, xSpeed: 0.7, yFrac: 0.92, amp: 0.04 },
   ];
 
+  const AURORA_STORAGE_KEY = "aurora_state";
+
   // Build config with URL param overrides
   function buildConfig(): AuroraConfig {
     const params = new URLSearchParams(location.search);
@@ -71,8 +73,8 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     };
     const getStr = (key: string, fallback: string) => params.get(key) ?? fallback;
 
-    // Randomize band offsets once
-    const bands: Band[] = DEFAULT_BANDS.map(b => ({ ...b, offset: Math.random() }));
+    // Offsets are set later (restore or randomize)
+    const bands: Band[] = DEFAULT_BANDS.map(b => ({ ...b, offset: 0 }));
 
     return {
       bands,
@@ -97,6 +99,60 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   }
 
   const CFG = buildConfig();
+
+  // ── State persistence ────────────────────────────────────────────────────────
+  // Save band offsets and current time so the animation is seamless across page
+  // navigations. Cleared on full page reload (Cmd+R / F5).
+  function restoreAuroraState(): void {
+    try {
+      const nav = performance.getEntriesByType("navigation")[0] as
+        | PerformanceNavigationTiming
+        | undefined;
+      if (nav && nav.type === "reload") {
+        localStorage.removeItem(AURORA_STORAGE_KEY);
+        randomizeOffsets();
+        return;
+      }
+    } catch {
+      /* navigation API not available */
+    }
+
+    const saved = localStorage.getItem(AURORA_STORAGE_KEY);
+    if (saved) {
+      try {
+        const state = JSON.parse(saved) as { offsets: number[]; time: number };
+        const offsets = state.offsets;
+        for (let i = 0; i < CFG.bands.length && i < offsets.length; i++) {
+          CFG.bands[i].offset = offsets[i];
+        }
+        t = state.time || 0;
+        return;
+      } catch {
+        /* corrupt state */
+        localStorage.removeItem(AURORA_STORAGE_KEY);
+      }
+    }
+
+    randomizeOffsets();
+  }
+
+  function randomizeOffsets(): void {
+    for (const band of CFG.bands) {
+      band.offset = Math.random();
+    }
+  }
+
+  function saveAuroraState(): void {
+    try {
+      const state = {
+        offsets: CFG.bands.map(b => b.offset),
+        time: t,
+      };
+      localStorage.setItem(AURORA_STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      /* storage full or blocked */
+    }
+  }
 
   // ── Aurora bands ──────────────────────────────────────────────────────────
   interface Band {
@@ -351,7 +407,11 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     }
   }
 
-  // ── Visibility — pause when tab is hidden ─────────────────────────────────
+  // ── Visibility — save state on navigate-away, pause when tab hidden ────────
+  // pagehide fires on navigation (not just tab switch), which is when we
+  // want to persist state so the next page load can restore it.
+  window.addEventListener("pagehide", saveAuroraState);
+
   document.addEventListener("visibilitychange", function () {
     if (document.hidden) {
       if (raf !== null) cancelAnimationFrame(raf);
@@ -364,6 +424,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
 
   // ── Boot ──────────────────────────────────────────────────────────────────
   resize();
+  restoreAuroraState();
   buildScanlinePattern();
   requestAnimationFrame(loop);
 
