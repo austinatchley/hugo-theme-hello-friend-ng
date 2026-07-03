@@ -114,11 +114,9 @@
     let lastTime = null;
     let frameCount = 0;
     const DEFAULT_BANDS = [
-      { speed: 0.26, xSpeed: 1.6, yFrac: 0.08, amp: 0.06 },
-      { speed: 0.18, xSpeed: 1.2, yFrac: 0.26, amp: 0.05 },
-      { speed: 0.22, xSpeed: 1.9, yFrac: 0.44, amp: 0.07 },
-      { speed: 0.21, xSpeed: 1.4, yFrac: 0.62, amp: 0.06 },
-      { speed: 0.24, xSpeed: 1.8, yFrac: 0.8, amp: 0.05 }
+      { speed: 0.2, xSpeed: 1.4, yFrac: 0.22, amp: 0.08 },
+      { speed: 0.16, xSpeed: 1.1, yFrac: 0.5, amp: 0.07 },
+      { speed: 0.18, xSpeed: 1.6, yFrac: 0.78, amp: 0.06 }
     ];
     const AURORA_STORAGE_KEY = "aurora_state";
     function detectQuality() {
@@ -135,7 +133,7 @@
     }
     const QUALITY = detectQuality();
     const QUALITY_PRESETS = {
-      high: { bandCount: 5, segments: 20, noiseEnabled: true, scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: false },
+      high: { bandCount: 3, segments: 20, noiseEnabled: true, scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: false },
       medium: { bandCount: 4, segments: 14, noiseEnabled: false, scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: false },
       low: { bandCount: 2, segments: 10, noiseEnabled: false, scanlinesEnabled: false, glitchEnabled: false, ditherEnabled: false }
     };
