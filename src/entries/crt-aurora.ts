@@ -81,17 +81,18 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
 
   const QUALITY = detectQuality();
 
-  // Quality presets: [bandCount, segments, noise, scanlines, glitch]
+  // Quality presets: [bandCount, segments, noise, scanlines, glitch, dither]
   const QUALITY_PRESETS: Record<Quality, {
     bandCount: number;
     segments: number;
     noiseEnabled: boolean;
     scanlinesEnabled: boolean;
     glitchEnabled: boolean;
+    ditherEnabled: boolean;
   }> = {
-    high:   { bandCount: 6, segments: 20, noiseEnabled: true,  scanlinesEnabled: true, glitchEnabled: true },
-    medium: { bandCount: 4, segments: 14, noiseEnabled: false, scanlinesEnabled: true, glitchEnabled: true },
-    low:    { bandCount: 2, segments: 10, noiseEnabled: false, scanlinesEnabled: false, glitchEnabled: false },
+    high:   { bandCount: 6, segments: 20, noiseEnabled: true,  scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: true },
+    medium: { bandCount: 4, segments: 14, noiseEnabled: false, scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: true },
+    low:    { bandCount: 2, segments: 10, noiseEnabled: false, scanlinesEnabled: false, glitchEnabled: false, ditherEnabled: true },
   };
 
   // Build config with URL param overrides
@@ -406,6 +407,45 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     c.fillRect(0, rollY, W, CFG.rollHeight);
   }
 
+  // ── Ordered dithering (8-bit 3-3-2 Bayer) ─────────────────────────────────
+  const BAYER4 = [
+    [ 0,  8,  2, 10],
+    [12,  4, 14,  6],
+    [ 3, 11,  1,  9],
+    [15,  7, 13,  5],
+  ];
+
+  function drawDither(): void {
+    const data = ctx!.getImageData(0, 0, W, H);
+    const d = data.data;
+    for (let y = 0; y < H; y++) {
+      const by = y & 3;
+      for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4;
+        const th = (BAYER4[by][x & 3] + 0.5) / 16;
+
+        // R — 3 bits (8 levels, step 32)
+        const r = d[i];
+        let rq = (r / 32) | 0;
+        if (r % 32 / 32 > th) rq = Math.min(rq + 1, 7);
+        d[i] = rq * 32;
+
+        // G — 3 bits (8 levels)
+        const g = d[i + 1];
+        let gq = (g / 32) | 0;
+        if (g % 32 / 32 > th) gq = Math.min(gq + 1, 7);
+        d[i + 1] = gq * 32;
+
+        // B — 2 bits (4 levels, step 64)
+        const b = d[i + 2];
+        let bq = (b / 64) | 0;
+        if (b % 64 / 64 > th) bq = Math.min(bq + 1, 3);
+        d[i + 2] = bq * 64;
+      }
+    }
+    ctx!.putImageData(data, 0, 0);
+  }
+
   // ── Horizontal glitch ─────────────────────────────────────────────────────
   let glitchCooldown = 4;
 
@@ -477,6 +517,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
       drawAurora(ctx!);
       if (QP.scanlinesEnabled) drawScanlines(ctx!);
     }
+    if (QP.ditherEnabled) drawDither();
     if (QP.glitchEnabled) maybeGlitch(dt);
 
     meter.record(performance.now() - workStart);
