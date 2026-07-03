@@ -90,9 +90,9 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     glitchEnabled: boolean;
     ditherEnabled: boolean;
   }> = {
-    high:   { bandCount: 6, segments: 20, noiseEnabled: true,  scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: true },
-    medium: { bandCount: 4, segments: 14, noiseEnabled: false, scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: true },
-    low:    { bandCount: 2, segments: 10, noiseEnabled: false, scanlinesEnabled: false, glitchEnabled: false, ditherEnabled: true },
+    high:   { bandCount: 6, segments: 20, noiseEnabled: true,  scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: false },
+    medium: { bandCount: 4, segments: 14, noiseEnabled: false, scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: false },
+    low:    { bandCount: 2, segments: 10, noiseEnabled: false, scanlinesEnabled: false, glitchEnabled: false, ditherEnabled: false },
   };
 
   // Build config with URL param overrides
