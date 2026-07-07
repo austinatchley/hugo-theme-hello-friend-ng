@@ -7,7 +7,7 @@
   }
 
   // src/lib/particles-core.ts
-  var COUNT = 160;
+  var COUNT = 250;
   var REPEL_RADIUS = 110;
   var MAX_DISPLACE = 60;
   var LERP_RETURN = 0.1;

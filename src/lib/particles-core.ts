@@ -1,6 +1,6 @@
 import { lerp } from "./math.js";
 
-export const COUNT = 160;
+export const COUNT = 250;
 export const REPEL_RADIUS = 110;
 export const MAX_DISPLACE = 60;
 export const LERP_RETURN = 0.1; // how fast particles snap back
