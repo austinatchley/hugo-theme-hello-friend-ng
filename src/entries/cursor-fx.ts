@@ -58,6 +58,7 @@ import {
     }
     mx = e.clientX;
     my = e.clientY;
+    ensureRunning();
   });
 
   window.addEventListener("pointerleave", function () {
@@ -71,6 +72,7 @@ import {
 
   window.addEventListener("click", function (e) {
     pushRipple(ripples, e.clientX, e.clientY, t);
+    ensureRunning();
   });
 
   // ── Time ──────────────────────────────────────────────────────────────────
@@ -78,7 +80,37 @@ import {
   let lastTime: number | null = null;
   let raf: number | null = null;
 
+  // Park the rAF loop entirely when nothing needs drawing: the halo has
+  // converged on the cursor (within half a pixel) and no ripples are in
+  // flight. Restarted on the next pointermove/click. Zero per-frame cost
+  // while idle instead of a 60fps loop drawing nothing.
+  function isIdle(): boolean {
+    return (
+      mx === -9999 ||
+      (Math.abs(mx - hx) < 0.5 && Math.abs(my - hy) < 0.5 && ripples.length === 0)
+    );
+  }
+
+  function ensureRunning(): void {
+    if (raf === null) {
+      lastTime = null;
+      raf = requestAnimationFrame(draw);
+    }
+  }
+
   function draw(now: number): void {
+    if (isIdle()) {
+      // Converged — snap exactly onto the cursor and stop scheduling frames.
+      raf = null;
+      lastTime = null;
+      if (mx !== -9999) {
+        hx = mx;
+        hy = my;
+        halo.style.transform =
+          "translate(" + (hx - 150) + "px," + (hy - 150) + "px)";
+      }
+      return;
+    }
     raf = requestAnimationFrame(draw);
     if (!lastTime) lastTime = now;
     const dt = Math.min((now - lastTime) / 1000, 0.05);
@@ -123,7 +155,7 @@ import {
     }
   }
 
-  requestAnimationFrame(draw);
+  ensureRunning();
 
   document.addEventListener("visibilitychange", function () {
     if (document.hidden) {
@@ -131,8 +163,9 @@ import {
       raf = null;
       lastTime = null;
     } else {
-      lastTime = null;
-      requestAnimationFrame(draw);
+      // draw() parks itself immediately if still idle, so it's safe to always
+      // kick one frame here.
+      raf = requestAnimationFrame(draw);
     }
   });
 })();

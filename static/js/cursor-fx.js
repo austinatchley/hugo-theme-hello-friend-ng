@@ -71,6 +71,7 @@
       }
       mx = e.clientX;
       my = e.clientY;
+      ensureRunning();
     });
     window.addEventListener("pointerleave", function() {
       mx = -9999;
@@ -80,11 +81,31 @@
     const ripples = [];
     window.addEventListener("click", function(e) {
       pushRipple(ripples, e.clientX, e.clientY, t);
+      ensureRunning();
     });
     let t = 0;
     let lastTime = null;
     let raf = null;
+    function isIdle() {
+      return mx === -9999 || Math.abs(mx - hx) < 0.5 && Math.abs(my - hy) < 0.5 && ripples.length === 0;
+    }
+    function ensureRunning() {
+      if (raf === null) {
+        lastTime = null;
+        raf = requestAnimationFrame(draw);
+      }
+    }
     function draw(now) {
+      if (isIdle()) {
+        raf = null;
+        lastTime = null;
+        if (mx !== -9999) {
+          hx = mx;
+          hy = my;
+          halo.style.transform = "translate(" + (hx - 150) + "px," + (hy - 150) + "px)";
+        }
+        return;
+      }
       raf = requestAnimationFrame(draw);
       if (!lastTime) lastTime = now;
       const dt = Math.min((now - lastTime) / 1e3, 0.05);
@@ -119,15 +140,14 @@
         ctx.stroke();
       }
     }
-    requestAnimationFrame(draw);
+    ensureRunning();
     document.addEventListener("visibilitychange", function() {
       if (document.hidden) {
         if (raf !== null) cancelAnimationFrame(raf);
         raf = null;
         lastTime = null;
       } else {
-        lastTime = null;
-        requestAnimationFrame(draw);
+        raf = requestAnimationFrame(draw);
       }
     });
   })();
