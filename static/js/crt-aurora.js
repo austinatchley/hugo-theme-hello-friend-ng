@@ -172,6 +172,7 @@
         glitchCooldownMax: getFloat("glitchCooldownMax", 5),
         glitchShiftMax: getFloat("glitchShiftMax", 16),
         glitchHeightMax: getInt("glitchHeightMax", 2),
+        renderScale: getFloat("renderScale", 0.6),
         backgroundColor: getStr("bgColor", "#15202b")
       };
     }
@@ -392,8 +393,8 @@
       }
     }
     function resize() {
-      W = canvas.width = window.innerWidth;
-      H = canvas.height = window.innerHeight;
+      W = canvas.width = Math.max(1, Math.floor(window.innerWidth * CFG.renderScale));
+      H = canvas.height = Math.max(1, Math.floor(window.innerHeight * CFG.renderScale));
       for (const c of vGradCache) c.top = -9999;
     }
     let resizeTimer;

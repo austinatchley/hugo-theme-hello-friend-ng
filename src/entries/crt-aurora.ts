@@ -28,7 +28,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
 
   // ── Configuration ────────────────────────────────────────────────────────────
   // All tunable knobs in one place. Override via URL params if needed:
-  //   ?bands=4&segments=16&bandHeight=0.55&noiseOpacity=0.03
+  //   ?bands=4&segments=16&bandHeight=0.55&noiseOpacity=0.03&renderScale=0.6
   interface AuroraConfig {
     bands: Band[];
     segments: number;
@@ -47,6 +47,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     glitchCooldownMax: number;
     glitchShiftMax: number;
     glitchHeightMax: number;
+    renderScale: number;      // internal canvas resolution as fraction of viewport
     backgroundColor: string;
   }
 
@@ -127,6 +128,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
       glitchCooldownMax: getFloat("glitchCooldownMax", 5),
       glitchShiftMax: getFloat("glitchShiftMax", 16),
       glitchHeightMax: getInt("glitchHeightMax", 2),
+      renderScale: getFloat("renderScale", 0.6),
       backgroundColor: getStr("bgColor", "#15202b"),
     };
   }
@@ -443,9 +445,13 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   }
 
   // ── Resize ────────────────────────────────────────────────────────────────
+  // Internal resolution is a fraction of the viewport; CSS scales the canvas
+  // element to full screen (100% width/height), so the browser bilinear-upscales.
+  // Combined with the CSS blur(8px) the lower resolution is visually invisible
+  // while cutting per-frame pixel work by ~64%. Full res via ?renderScale=1.
   function resize(): void {
-    W = canvas!.width = window.innerWidth;
-    H = canvas!.height = window.innerHeight;
+    W = canvas!.width = Math.max(1, Math.floor(window.innerWidth * CFG.renderScale));
+    H = canvas!.height = Math.max(1, Math.floor(window.innerHeight * CFG.renderScale));
     // Invalidate cached gradients — bandH (H * CFG.bandHeight) changed.
     for (const c of vGradCache) c.top = -9999;
   }
