@@ -110,7 +110,7 @@
     "use strict";
     const canvas = document.getElementById("crt-aurora");
     if (!canvas) return;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
     let W = 0;
     let H = 0;
@@ -387,8 +387,7 @@
       const lineH = Math.floor(Math.random() * CFG.glitchHeightMax) + 1;
       const shift = (Math.random() - 0.5) * CFG.glitchShiftMax;
       try {
-        const slice = ctx.getImageData(0, lineY, W, lineH);
-        ctx.putImageData(slice, shift, lineY);
+        ctx.drawImage(ctx.canvas, 0, lineY, W, lineH, shift, lineY, W, lineH);
       } catch {
       }
     }

@@ -11,9 +11,10 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   const canvas = document.getElementById("crt-aurora") as HTMLCanvasElement | null;
   if (!canvas) return;
 
-  // willReadFrequently hints the browser to keep the backing store on the CPU,
-  // which speeds up the per-frame getImageData/putImageData glitch effect.
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  // Default 2d context: GPU-backed. The glitch uses a self drawImage copy
+  // (stays on the GPU) instead of getImageData/putImageData, so no CPU
+  // readback is needed and every other draw call stays hardware accelerated.
+  const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
   let W = 0;
@@ -431,9 +432,11 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     const lineH = Math.floor(Math.random() * CFG.glitchHeightMax) + 1;
     const shift = (Math.random() - 0.5) * CFG.glitchShiftMax;
 
+    // Self-copy via drawImage: the browser snapshots the source region and
+    // blits it back offset — GPU resident, no CPU readback, unlike
+    // getImageData/putImageData which force a sync stall on GPU-backed canvases.
     try {
-      const slice = ctx!.getImageData(0, lineY, W, lineH);
-      ctx!.putImageData(slice, shift, lineY);
+      ctx!.drawImage(ctx!.canvas, 0, lineY, W, lineH, shift, lineY, W, lineH);
     } catch {
       /* ignore cross-origin errors */
     }
