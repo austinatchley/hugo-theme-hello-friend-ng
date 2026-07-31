@@ -398,6 +398,19 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     scanlinePattern = c.createPattern(tile, "repeat");
   }
 
+  // Precomputed once in band-local coordinates (0..rollHeight); drawScanlines
+  // positions it per-frame with a translate instead of reallocating a
+  // CanvasGradient every frame.
+  let rollGrad: CanvasGradient | null = null;
+
+  function buildRollGradient(c: CanvasRenderingContext2D): void {
+    const g = c.createLinearGradient(0, 0, 0, CFG.rollHeight);
+    g.addColorStop(0, "rgba(255,255,255,0)");
+    g.addColorStop(0.5, "rgba(255,255,255,0.015)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    rollGrad = g;
+  }
+
   function drawScanlines(c: CanvasRenderingContext2D): void {
     // multiply darkens only the stripe rows, preserving the colour underneath
     c.globalCompositeOperation = "multiply";
@@ -412,14 +425,14 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     }
     c.globalCompositeOperation = "source-over";
 
-    // Slow vertical roll — a faint lighter band drifting downward.
+    // Slow vertical roll — a faint lighter band drifting downward. The
+    // gradient is precomputed (buildRollGradient) in band-local coords, so a
+    // cheap translate positions it instead of allocating per frame.
     const rollY = ((t * CFG.rollSpeed) % (H + 100)) - 50;
-    const rollGrad = c.createLinearGradient(0, rollY, 0, rollY + CFG.rollHeight);
-    rollGrad.addColorStop(0, "rgba(255,255,255,0)");
-    rollGrad.addColorStop(0.5, "rgba(255,255,255,0.015)");
-    rollGrad.addColorStop(1, "rgba(255,255,255,0)");
-    c.fillStyle = rollGrad;
-    c.fillRect(0, rollY, W, CFG.rollHeight);
+    c.setTransform(1, 0, 0, 1, 0, rollY);
+    c.fillStyle = rollGrad!;
+    c.fillRect(0, 0, W, CFG.rollHeight);
+    c.setTransform(1, 0, 0, 1, 0, 0);
   }
 
   // ── Horizontal glitch ─────────────────────────────────────────────────────
@@ -539,6 +552,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   restoreAuroraState();
   injectNoiseOverlay();
   buildScanlinePattern(ctx!);
+  buildRollGradient(ctx!);
   requestAnimationFrame(loop);
 
   // Expose for Playwright perf harness (machine-readable JSON, not DOM text).
