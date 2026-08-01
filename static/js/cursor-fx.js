@@ -47,6 +47,7 @@
     document.body.appendChild(canvas);
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    canvas.style.opacity = "0";
     let W = 0;
     let H = 0;
     function resize() {
@@ -63,6 +64,9 @@
     let my = -9999;
     let hx = -9999;
     let hy = -9999;
+    function hideHalo() {
+      halo.style.transform = "translate(-9999px,-9999px)";
+    }
     const HALO_LERP = 0.31;
     window.addEventListener("pointermove", function(e) {
       if (mx === -9999) {
@@ -71,16 +75,19 @@
       }
       mx = e.clientX;
       my = e.clientY;
+      canvas.style.opacity = "0.5";
       ensureRunning();
     });
     window.addEventListener("pointerleave", function() {
       mx = -9999;
       my = -9999;
-      halo.style.transform = "translate(-9999px,-9999px)";
+      hideHalo();
+      canvas.style.opacity = "0";
     });
     const ripples = [];
     window.addEventListener("click", function(e) {
       pushRipple(ripples, e.clientX, e.clientY, t);
+      canvas.style.opacity = "0.5";
       ensureRunning();
     });
     let t = 0;
@@ -99,11 +106,8 @@
       if (isIdle()) {
         raf = null;
         lastTime = null;
-        if (mx !== -9999) {
-          hx = mx;
-          hy = my;
-          halo.style.transform = "translate(" + (hx - 150) + "px," + (hy - 150) + "px)";
-        }
+        hideHalo();
+        canvas.style.opacity = "0";
         return;
       }
       raf = requestAnimationFrame(draw);

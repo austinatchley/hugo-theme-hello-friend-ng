@@ -84,4 +84,5 @@ body.crt-page .content:has(.post, .posts) {
   pointer-events: none;
   z-index: 9998;
   opacity: 50%;
+  transition: opacity 0.4s ease;
 }

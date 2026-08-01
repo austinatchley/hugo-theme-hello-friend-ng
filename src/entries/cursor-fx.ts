@@ -26,6 +26,7 @@ import {
   document.body.appendChild(canvas);
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
+  canvas.style.opacity = "0";
 
   let W = 0;
   let H = 0;
@@ -48,6 +49,10 @@ import {
   let hx = -9999; // lerped halo position
   let hy = -9999;
 
+  function hideHalo(): void {
+    halo.style.transform = "translate(-9999px,-9999px)";
+  }
+
   // How aggressively the halo chases the cursor each frame (0–1).
   const HALO_LERP = 0.31;
 
@@ -58,13 +63,15 @@ import {
     }
     mx = e.clientX;
     my = e.clientY;
+    canvas.style.opacity = "0.5";
     ensureRunning();
   });
 
   window.addEventListener("pointerleave", function () {
     mx = -9999;
     my = -9999;
-    halo.style.transform = "translate(-9999px,-9999px)";
+    hideHalo();
+    canvas.style.opacity = "0";
   });
 
   // ── Click ripples ─────────────────────────────────────────────────────────
@@ -72,6 +79,7 @@ import {
 
   window.addEventListener("click", function (e) {
     pushRipple(ripples, e.clientX, e.clientY, t);
+    canvas.style.opacity = "0.5";
     ensureRunning();
   });
 
@@ -100,15 +108,12 @@ import {
 
   function draw(now: number): void {
     if (isIdle()) {
-      // Converged — snap exactly onto the cursor and stop scheduling frames.
+      // Converged — park the loop and hide the halo + fade out the rings
+      // instead of leaving a static blob on screen.
       raf = null;
       lastTime = null;
-      if (mx !== -9999) {
-        hx = mx;
-        hy = my;
-        halo.style.transform =
-          "translate(" + (hx - 150) + "px," + (hy - 150) + "px)";
-      }
+      hideHalo();
+      canvas.style.opacity = "0";
       return;
     }
     raf = requestAnimationFrame(draw);
