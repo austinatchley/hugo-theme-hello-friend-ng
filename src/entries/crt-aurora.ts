@@ -28,7 +28,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
 
   // ── Configuration ────────────────────────────────────────────────────────────
   // All tunable knobs in one place. Override via URL params if needed:
-  //   ?bands=4&segments=16&bandHeight=0.55&noiseOpacity=0.03&renderScale=0.6
+  //   ?bands=4&segments=16&bandHeight=0.55&noiseOpacity=0.03&renderScale=0.75
   interface AuroraConfig {
     bands: Band[];
     segments: number;
@@ -128,7 +128,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
       glitchCooldownMax: getFloat("glitchCooldownMax", 5),
       glitchShiftMax: getFloat("glitchShiftMax", 16),
       glitchHeightMax: getInt("glitchHeightMax", 2),
-      renderScale: getFloat("renderScale", 0.6),
+      renderScale: getFloat("renderScale", 0.8),
       backgroundColor: getStr("bgColor", "#15202b"),
     };
   }

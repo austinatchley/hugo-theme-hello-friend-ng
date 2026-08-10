@@ -172,7 +172,7 @@
         glitchCooldownMax: getFloat("glitchCooldownMax", 5),
         glitchShiftMax: getFloat("glitchShiftMax", 16),
         glitchHeightMax: getInt("glitchHeightMax", 2),
-        renderScale: getFloat("renderScale", 0.6),
+        renderScale: getFloat("renderScale", 0.8),
         backgroundColor: getStr("bgColor", "#15202b")
       };
     }
