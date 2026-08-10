@@ -30,6 +30,22 @@ html:has(body.crt-page) {
 // Desktop: side margins on .content so the aurora shows through as a
 // decorative border around post content. Only on pages with actual posts
 // (not the home page).
+// Scanline overlay — a second, unblurred canvas stacked right above the
+// aurora so the 1px dark rows stay crisp instead of being smeared by the
+// aurora's CSS blur. multiply darkens only where a row overlaps the aurora
+// underneath (transparent pixels blend to a no-op), so content is untouched.
+#crt-scanlines {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  display: block;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+
 body.crt-page .content:has(.post, .posts) {
   padding: 0 40px;
 

@@ -17,6 +17,12 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
+  // Scanline overlay canvas — full-resolution sibling rendered on top of the
+  // aurora. Its own 1px dark rows stay crisp because the CSS blur that
+  // softens the aurora only applies to #crt-aurora, not this layer.
+  const scanCanvas = document.getElementById("crt-scanlines") as HTMLCanvasElement | null;
+  const sctx = scanCanvas ? scanCanvas.getContext("2d") : null;
+
   let W = 0;
   let H = 0;
   let t = 0;
@@ -412,22 +418,28 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   }
 
   function drawScanlines(c: CanvasRenderingContext2D): void {
-    // multiply darkens only the stripe rows, preserving the colour underneath
-    c.globalCompositeOperation = "multiply";
+    // The overlay canvas is transparent; rows are painted normally so each
+    // pixel holds a semi-transparent dark value. The canvas element's CSS
+    // mix-blend-mode: multiply then darkens only where a row overlaps the
+    // aurora underneath — crisp because this layer never gets the aurora's blur.
+    c.clearRect(0, 0, c.canvas.width, c.canvas.height);
+    c.globalCompositeOperation = "source-over";
     if (scanlineMode === "pattern" && scanlinePattern) {
       c.fillStyle = scanlinePattern;
-      c.fillRect(0, 0, W, H);
+      c.fillRect(0, 0, c.canvas.width, c.canvas.height);
     } else {
       c.fillStyle = "rgba(0,0,0," + CFG.scanlineOpacity + ")";
-      for (let y = 0; y < H; y += CFG.scanlineSpacing) {
-        c.fillRect(0, y, W, 1);
+      for (let y = 0; y < c.canvas.height; y += CFG.scanlineSpacing) {
+        c.fillRect(0, y, c.canvas.width, 1);
       }
     }
-    c.globalCompositeOperation = "source-over";
+  }
 
-    // Slow vertical roll — a faint lighter band drifting downward. The
-    // gradient is precomputed (buildRollGradient) in band-local coords, so a
-    // cheap translate positions it instead of allocating per frame.
+  function drawRoll(c: CanvasRenderingContext2D): void {
+    // Slow vertical roll — a faint lighter band drifting downward, drawn on
+    // the aurora canvas (lightens, so it can't live in the multiply layer).
+    // The gradient is precomputed (buildRollGradient) in band-local coords,
+    // so a cheap translate positions it instead of allocating per frame.
     const rollY = ((t * CFG.rollSpeed) % (H + 100)) - 50;
     c.setTransform(1, 0, 0, 1, 0, rollY);
     c.fillStyle = rollGrad!;
@@ -465,6 +477,11 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   function resize(): void {
     W = canvas!.width = Math.max(1, Math.floor(window.innerWidth * CFG.renderScale));
     H = canvas!.height = Math.max(1, Math.floor(window.innerHeight * CFG.renderScale));
+    // Scanline overlay runs at full CSS resolution so the 1px rows stay crisp.
+    if (scanCanvas) {
+      scanCanvas.width = Math.max(1, window.innerWidth);
+      scanCanvas.height = Math.max(1, window.innerHeight);
+    }
     // Invalidate cached gradients — bandH (H * CFG.bandHeight) changed.
     for (const c of vGradCache) c.top = -9999;
   }
@@ -509,7 +526,9 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
       ctx!.fillStyle = CFG.backgroundColor;
       ctx!.fillRect(0, 0, W, H);
       drawAurora(ctx!);
-      if (QP.scanlinesEnabled) drawScanlines(ctx!);
+      // Scanlines drawn on their own full-res layer so they stay crisp.
+      if (QP.scanlinesEnabled && sctx) drawScanlines(sctx);
+      if (QP.scanlinesEnabled) drawRoll(ctx!);
     }
     if (QP.glitchEnabled) maybeGlitch(dt);
 
@@ -551,7 +570,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
   resize();
   restoreAuroraState();
   injectNoiseOverlay();
-  buildScanlinePattern(ctx!);
+  buildScanlinePattern(sctx ? sctx : ctx!);
   buildRollGradient(ctx!);
   requestAnimationFrame(loop);
 

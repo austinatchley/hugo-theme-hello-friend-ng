@@ -112,6 +112,8 @@
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    const scanCanvas = document.getElementById("crt-scanlines");
+    const sctx = scanCanvas ? scanCanvas.getContext("2d") : null;
     let W = 0;
     let H = 0;
     let t = 0;
@@ -368,17 +370,19 @@
       rollGrad = g;
     }
     function drawScanlines(c) {
-      c.globalCompositeOperation = "multiply";
+      c.clearRect(0, 0, c.canvas.width, c.canvas.height);
+      c.globalCompositeOperation = "source-over";
       if (scanlineMode === "pattern" && scanlinePattern) {
         c.fillStyle = scanlinePattern;
-        c.fillRect(0, 0, W, H);
+        c.fillRect(0, 0, c.canvas.width, c.canvas.height);
       } else {
         c.fillStyle = "rgba(0,0,0," + CFG.scanlineOpacity + ")";
-        for (let y = 0; y < H; y += CFG.scanlineSpacing) {
-          c.fillRect(0, y, W, 1);
+        for (let y = 0; y < c.canvas.height; y += CFG.scanlineSpacing) {
+          c.fillRect(0, y, c.canvas.width, 1);
         }
       }
-      c.globalCompositeOperation = "source-over";
+    }
+    function drawRoll(c) {
       const rollY = t * CFG.rollSpeed % (H + 100) - 50;
       c.setTransform(1, 0, 0, 1, 0, rollY);
       c.fillStyle = rollGrad;
@@ -401,6 +405,10 @@
     function resize() {
       W = canvas.width = Math.max(1, Math.floor(window.innerWidth * CFG.renderScale));
       H = canvas.height = Math.max(1, Math.floor(window.innerHeight * CFG.renderScale));
+      if (scanCanvas) {
+        scanCanvas.width = Math.max(1, window.innerWidth);
+        scanCanvas.height = Math.max(1, window.innerHeight);
+      }
       for (const c of vGradCache) c.top = -9999;
     }
     let resizeTimer;
@@ -431,7 +439,8 @@
         ctx.fillStyle = CFG.backgroundColor;
         ctx.fillRect(0, 0, W, H);
         drawAurora(ctx);
-        if (QP.scanlinesEnabled) drawScanlines(ctx);
+        if (QP.scanlinesEnabled && sctx) drawScanlines(sctx);
+        if (QP.scanlinesEnabled) drawRoll(ctx);
       }
       if (QP.glitchEnabled) maybeGlitch(dt);
       meter.record(performance.now() - workStart);
@@ -460,7 +469,7 @@
     resize();
     restoreAuroraState();
     injectNoiseOverlay();
-    buildScanlinePattern(ctx);
+    buildScanlinePattern(sctx ? sctx : ctx);
     buildRollGradient(ctx);
     requestAnimationFrame(loop);
     window.__auroraMeter = meter;
