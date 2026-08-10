@@ -5,23 +5,13 @@
   function lerp(a, b, k) {
     return a + (b - a) * k;
   }
+  function clamp(v, min, max) {
+    return v < min ? min : v > max ? max : v;
+  }
 
   // src/lib/rings.ts
-  var RING_PERIOD = 1.8;
-  var RING_COUNT = 3;
   var RIPPLE_LIFE = 1.4;
   var MAX_RIPPLES = 7;
-  function ringStyle(i, t) {
-    const phase = (t / RING_PERIOD + i / RING_COUNT) % 1;
-    return {
-      radius: phase * 75,
-      alpha: (1 - phase) * 0.18,
-      hue: lerp(48, 185, phase),
-      // gold → teal
-      sat: lerp(100, 80, phase),
-      lum: lerp(78, 70, phase)
-    };
-  }
   function pushRipple(ripples, x, y, born) {
     if (ripples.length >= MAX_RIPPLES) ripples.shift();
     ripples.push({ x, y, born });
@@ -64,10 +54,17 @@
     let my = -9999;
     let hx = -9999;
     let hy = -9999;
+    const HALO_MOVE_OPACITY = 1;
+    const HALO_REST_OPACITY = 0.5;
+    const HALO_OPACITY_ATTACK = 0.5;
+    const HALO_OPACITY_DECAY = 0.05;
+    let haloOpacity = HALO_MOVE_OPACITY;
     function hideHalo() {
       halo.style.transform = "translate(-9999px,-9999px)";
     }
-    const HALO_LERP = 0.31;
+    const HALO_ATTACK = 0.5;
+    const HALO_DECAY = 0.25;
+    const HALO_ATTACK_DIST = 120;
     window.addEventListener("pointermove", function(e) {
       if (mx === -9999) {
         hx = e.clientX;
@@ -94,7 +91,7 @@
     let lastTime = null;
     let raf = null;
     function isIdle() {
-      return mx === -9999 || Math.abs(mx - hx) < 0.5 && Math.abs(my - hy) < 0.5 && ripples.length === 0;
+      return mx === -9999 || Math.abs(mx - hx) < 0.5 && Math.abs(my - hy) < 0.5 && ripples.length === 0 && Math.abs(haloOpacity - HALO_REST_OPACITY) < 0.01;
     }
     function ensureRunning() {
       if (raf === null) {
@@ -103,34 +100,36 @@
       }
     }
     function draw(now) {
-      if (isIdle()) {
-        raf = null;
-        lastTime = null;
-        hideHalo();
-        canvas.style.opacity = "0";
-        return;
-      }
       raf = requestAnimationFrame(draw);
       if (!lastTime) lastTime = now;
       const dt = Math.min((now - lastTime) / 1e3, 0.05);
       lastTime = now;
       t += dt;
       if (mx !== -9999) {
-        hx = lerp(hx, mx, HALO_LERP);
-        hy = lerp(hy, my, HALO_LERP);
+        const dist = Math.hypot(mx - hx, my - hy);
+        const k = lerp(
+          HALO_DECAY,
+          HALO_ATTACK,
+          clamp(dist / HALO_ATTACK_DIST, 0, 1)
+        );
+        hx = lerp(hx, mx, k);
+        hy = lerp(hy, my, k);
         halo.style.transform = "translate(" + (hx - 150) + "px," + (hy - 150) + "px)";
+        const settled = dist < 0.5;
+        haloOpacity = lerp(
+          haloOpacity,
+          settled ? HALO_REST_OPACITY : HALO_MOVE_OPACITY,
+          settled ? HALO_OPACITY_DECAY : HALO_OPACITY_ATTACK
+        );
+        halo.style.opacity = String(haloOpacity);
+      }
+      if (isIdle()) {
+        raf = null;
+        lastTime = null;
+        canvas.style.opacity = "0";
+        return;
       }
       ctx.clearRect(0, 0, W, H);
-      if (mx > 0) {
-        for (let i = 0; i < RING_COUNT; i++) {
-          const s = ringStyle(i, t);
-          ctx.beginPath();
-          ctx.arc(mx, my, s.radius, 0, Math.PI * 2);
-          ctx.strokeStyle = "hsla(" + s.hue + "," + s.sat + "%," + s.lum + "%," + s.alpha + ")";
-          ctx.lineWidth = 1.25;
-          ctx.stroke();
-        }
-      }
       for (let j = ripples.length - 1; j >= 0; j--) {
         const style = rippleStyle(ripples[j], t);
         if (style.expired) {
