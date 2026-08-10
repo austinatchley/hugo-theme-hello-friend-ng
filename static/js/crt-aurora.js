@@ -170,6 +170,7 @@
         scanlineSpacing: getInt("scanlineSpacing", 3),
         rollSpeed: getFloat("rollSpeed", 38),
         rollHeight: getInt("rollHeight", 100),
+        maskFadeFrac: getFloat("maskFadeFrac", 0.3),
         glitchCooldownMin: getFloat("glitchCooldownMin", 3.5),
         glitchCooldownMax: getFloat("glitchCooldownMax", 5),
         glitchShiftMax: getFloat("glitchShiftMax", 16),
@@ -250,10 +251,6 @@
       }
     }
     const BANDS = CFG.bands;
-    const vGradCache = [];
-    for (let i = 0; i < BANDS.length; i++) {
-      vGradCache.push({ top: -9999, gradient: ctx.createLinearGradient(0, 0, 0, 1) });
-    }
     function drawAurora(c) {
       const segments = QP.segments;
       const bandCount = Math.min(QP.bandCount, BANDS.length);
@@ -280,19 +277,11 @@
         for (const st of stops) {
           hGrad.addColorStop(st.pos, st.col);
         }
-        const cached = vGradCache[b];
-        let vGrad;
-        if (Math.abs(cached.top - top) > 1) {
-          vGrad = c.createLinearGradient(0, top, 0, bottom);
-          vGrad.addColorStop(0, "rgba(255,255,255,0)");
-          vGrad.addColorStop(0.3, "rgba(255,255,255,1)");
-          vGrad.addColorStop(0.7, "rgba(255,255,255,1)");
-          vGrad.addColorStop(1, "rgba(255,255,255,0)");
-          cached.top = top;
-          cached.gradient = vGrad;
-        } else {
-          vGrad = cached.gradient;
-        }
+        const fadePx = Math.max(1, Math.round(bandH * CFG.maskFadeFrac));
+        const yTop = Math.round(top);
+        const yBot = Math.round(bottom);
+        const midTop = yTop + fadePx;
+        const midBot = yBot - fadePx;
         const waveAmp = bandH * 0.048;
         const waveFreq = 2e-3;
         const wavePhase = t * 0.3 + band.phaseOffset;
@@ -312,11 +301,18 @@
         }
         c.closePath();
         c.clip();
+        c.globalAlpha = 0.69;
         c.fillStyle = hGrad;
-        c.fillRect(0, top, W, bandH);
-        c.globalCompositeOperation = "destination-in";
-        c.fillStyle = vGrad;
-        c.fillRect(0, top, W, bandH);
+        const midH = midBot - midTop;
+        if (midH > 0) c.fillRect(0, midTop, W, midH);
+        for (let y = yTop; y < midTop; y++) {
+          c.globalAlpha = 0.69 * ((y - yTop + 0.5) / fadePx);
+          c.fillRect(0, y, W, 1);
+        }
+        for (let y = midBot; y < yBot; y++) {
+          c.globalAlpha = 0.69 * ((yBot - 1 - y + 0.5) / fadePx);
+          c.fillRect(0, y, W, 1);
+        }
         c.restore();
       }
       c.globalAlpha = 1;
@@ -409,7 +405,6 @@
         scanCanvas.width = Math.max(1, window.innerWidth);
         scanCanvas.height = Math.max(1, window.innerHeight);
       }
-      for (const c of vGradCache) c.top = -9999;
     }
     let resizeTimer;
     window.addEventListener("resize", function() {

@@ -49,6 +49,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
     scanlineSpacing: number;  // pixels between scanlines
     rollSpeed: number;        // vertical roll drift rate
     rollHeight: number;       // roll gradient height in px
+    maskFadeFrac: number;     // fraction of bandH covered by each vertical fade
     glitchCooldownMin: number;
     glitchCooldownMax: number;
     glitchShiftMax: number;
@@ -130,6 +131,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
       scanlineSpacing: getInt("scanlineSpacing", 3),
       rollSpeed: getFloat("rollSpeed", 38),
       rollHeight: getInt("rollHeight", 100),
+      maskFadeFrac: getFloat("maskFadeFrac", 0.3),
       glitchCooldownMin: getFloat("glitchCooldownMin", 3.5),
       glitchCooldownMax: getFloat("glitchCooldownMax", 5),
       glitchShiftMax: getFloat("glitchShiftMax", 16),
@@ -247,14 +249,6 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
 
   const BANDS = CFG.bands;
 
-  // ── Gradient cache ─────────────────────────────────────────────────────────
-  // Vertical mask gradients are reused when band y-position hasn't moved >1px.
-  // Cleared on resize (when H changes).
-  const vGradCache: { top: number; gradient: CanvasGradient }[] = [];
-  for (let i = 0; i < BANDS.length; i++) {
-    vGradCache.push({ top: -9999, gradient: ctx!.createLinearGradient(0, 0, 0, 1) });
-  }
-
   function drawAurora(c: CanvasRenderingContext2D): void {
     const segments = QP.segments;
     const bandCount = Math.min(QP.bandCount, BANDS.length);
@@ -290,25 +284,21 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
         hGrad.addColorStop(st.pos, st.col);
       }
 
-      // Vertical fade mask (positioned at the band so the fade is centred on it).
-      // Cached per-band — rebuilt only when top moves by more than 1px.
-      const cached = vGradCache[b];
-      let vGrad: CanvasGradient;
-      if (Math.abs(cached.top - top) > 1) {
-        vGrad = c.createLinearGradient(0, top, 0, bottom);
-        vGrad.addColorStop(0, "rgba(255,255,255,0)");
-        vGrad.addColorStop(0.3, "rgba(255,255,255,1)");
-        vGrad.addColorStop(0.7, "rgba(255,255,255,1)");
-        vGrad.addColorStop(1, "rgba(255,255,255,0)");
-        cached.top = top;
-        cached.gradient = vGrad;
-      } else {
-        vGrad = cached.gradient;
-      }
+      // Vertical fade mask. The old approach — a white linear-gradient filled
+      // under `destination-in` — gets its alpha ramp quantized to a hard
+      // on/off by the browser: the fade collapses to a ~1px edge, and which
+      // edge survives varies per band (the source of the top-vs-bottom blur
+      // asymmetry once the CSS blur(8px) is applied). Per-row fills with a
+      // row-local globalAlpha can't be mis-rasterized that way, so each fade
+      // is an exact linear ramp.
+      const fadePx = Math.max(1, Math.round(bandH * CFG.maskFadeFrac));
+      const yTop = Math.round(top);
+      const yBot = Math.round(bottom);
+      const midTop = yTop + fadePx;                  // first plateau row
+      const midBot = yBot - fadePx;                  // one past last plateau row
 
-      // Clip to band area so destination-in doesn't leak into background or
-      // adjacent bands. Top and bottom edges have a sine wave to break up the
-      // straight horizontal fade lines.
+      // Clip to the band area. The sine-wave top/bottom edges crop the fade
+      // rows so band edges stay wavy, never straight horizontal lines.
       const waveAmp = bandH * 0.048;
       const waveFreq = 0.002;
       const wavePhase = t * 0.3 + band.phaseOffset;
@@ -329,12 +319,22 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
       c.closePath();
       c.clip();
 
+      // Plateau: one opaque fill at base opacity.
+      c.globalAlpha = 0.69;
       c.fillStyle = hGrad;
-      c.fillRect(0, top, W, bandH);
+      const midH = midBot - midTop;
+      if (midH > 0) c.fillRect(0, midTop, W, midH);
 
-      c.globalCompositeOperation = "destination-in";
-      c.fillStyle = vGrad;
-      c.fillRect(0, top, W, bandH);
+      // Top fade: alpha ramps 0→1 across the first fadePx rows.
+      for (let y = yTop; y < midTop; y++) {
+        c.globalAlpha = 0.69 * ((y - yTop + 0.5) / fadePx);
+        c.fillRect(0, y, W, 1);
+      }
+      // Bottom fade: alpha ramps 1→0 across the last fadePx rows.
+      for (let y = midBot; y < yBot; y++) {
+        c.globalAlpha = 0.69 * ((yBot - 1 - y + 0.5) / fadePx);
+        c.fillRect(0, y, W, 1);
+      }
 
       c.restore();
     }
@@ -482,8 +482,6 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
       scanCanvas.width = Math.max(1, window.innerWidth);
       scanCanvas.height = Math.max(1, window.innerHeight);
     }
-    // Invalidate cached gradients — bandH (H * CFG.bandHeight) changed.
-    for (const c of vGradCache) c.top = -9999;
   }
 
   let resizeTimer: ReturnType<typeof setTimeout>;
