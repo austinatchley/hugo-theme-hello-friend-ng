@@ -35,11 +35,18 @@
 
   &__inner {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
+    gap: 16px;
     margin: 0 auto;
     width: 760px;
     max-width: 100%;
+
+    > a,
+    .header__right {
+      min-width: 0;
+    }
   }
 }
 
