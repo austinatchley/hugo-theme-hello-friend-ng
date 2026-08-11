@@ -130,7 +130,7 @@
     let hy = -9999;
     const HALO_MOVE_OPACITY = 1;
     const HALO_REST_OPACITY = 0.5;
-    const HALO_OPACITY_ATTACK = 0.5;
+    const HALO_OPACITY_ATTACK = 0.3;
     const HALO_OPACITY_DECAY = 0.05;
     let haloOpacity = HALO_MOVE_OPACITY;
     function hideHalo() {

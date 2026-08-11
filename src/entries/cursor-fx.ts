@@ -52,7 +52,7 @@ import { FrameMeter, perfHudEnabled, formatStats } from '../lib/perf.js'
   // settled (decay), easing each frame instead of snapping.
   const HALO_MOVE_OPACITY = 1
   const HALO_REST_OPACITY = 0.5
-  const HALO_OPACITY_ATTACK = 0.5 // per-frame lerp while opacity rising
+  const HALO_OPACITY_ATTACK = 0.3 // per-frame lerp while opacity rising
   const HALO_OPACITY_DECAY = 0.05 // per-frame lerp while dimming to rest
   let haloOpacity = HALO_MOVE_OPACITY
 
