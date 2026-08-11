@@ -193,7 +193,7 @@
         segmentJitterSpeed: getFloat("segmentJitterSpeed", 0.6),
         noiseOpacity: getFloat("noiseOpacity", 0.08),
         noiseTileSize: getInt("noiseTileSize", 256),
-        scanlineOpacity: getFloat("scanlineOpacity", 0.45),
+        scanlineOpacity: getFloat("scanlineOpacity", 0.3),
         scanlineSpacing: getInt("scanlineSpacing", 3),
         rollSpeed: getFloat("rollSpeed", 38),
         rollHeight: getInt("rollHeight", 100),
