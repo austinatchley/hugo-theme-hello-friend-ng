@@ -46,34 +46,45 @@ $review-border: 1px solid var(--border-color, rgba(255,255,255,0.1));
   padding: 0 1rem;
 }
 
-.review-hero {
-  display: grid;
-  grid-template-columns: 1fr;  // single column instead of "220px 1fr"
-  gap: 1.5rem;
-  align-items: start;
-  margin-bottom: 2.5rem;
-  padding-bottom: 2rem;
-  border-bottom: $review-border;
-
-  @media (max-width: 600px) {
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-  }
-}
-
-.review-cover-wrap {
-  width: 500px;
-  margin: 0 auto;
+// Review pages carry the artwork up top, so trim the generic content top
+// padding (theme `.content` uses 5rem) — the hero supplies its own spacing.
+.content:has(.review-single) {
   padding-top: 3rem;
 
   @media (max-width: 600px) {
-    position: static;
-    max-width: 320px;
+    padding-top: 1.5rem;
+  }
+}
+
+.review-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 2.5rem;
+  padding: 1.5rem 0 2rem;
+  border-bottom: $review-border;
+}
+
+.review-cover-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 600px;
+  max-width: 100%;
+  margin: 0 auto;
+  padding-bottom: 1.25rem;
+
+  @media (max-width: 600px) {
+    max-width: 352px;
+    padding-bottom: 1rem;
   }
 }
 
 .review-cover {
   width: 100%;
+  max-width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
   border-radius: $review-radius;
@@ -104,7 +115,7 @@ $review-border: 1px solid var(--border-color, rgba(255,255,255,0.1));
   font-style: italic;
   font-size: 1.05rem;
   opacity: 0.65;
-  margin: 0 0 0.25rem;
+  margin: 0 0 0.2rem;
 }
 
 .review-album-title {
@@ -113,7 +124,7 @@ $review-border: 1px solid var(--border-color, rgba(255,255,255,0.1));
   font-weight: 400;
   letter-spacing: -0.02em;
   line-height: 1.15;
-  margin: 0 0 1.25rem;
+  margin: 0 0 1rem;
 }
 
 .review-stats {
@@ -190,8 +201,10 @@ $review-border: 1px solid var(--border-color, rgba(255,255,255,0.1));
 .review-score-row {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
-  margin-bottom: 1.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 0 0 1rem;
 }
 
 .review-score {
@@ -202,7 +215,7 @@ $review-border: 1px solid var(--border-color, rgba(255,255,255,0.1));
 
 .score-number {
   font-family: $review-mono;
-  font-size: 3.5rem;
+  font-size: 3rem;
   font-weight: 500;
   line-height: 1;
   color: var(--accent, #04885e);
@@ -210,7 +223,7 @@ $review-border: 1px solid var(--border-color, rgba(255,255,255,0.1));
 
 .score-denom {
   font-family: $review-mono;
-  font-size: 1.1rem;
+  font-size: 1rem;
   opacity: 0.35;
 }
 
