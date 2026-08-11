@@ -100,7 +100,6 @@
       }
     }
     function draw(now) {
-      raf = requestAnimationFrame(draw);
       if (!lastTime) lastTime = now;
       const dt = Math.min((now - lastTime) / 1e3, 0.05);
       lastTime = now;
@@ -142,6 +141,7 @@
         ctx.lineWidth = 1.5;
         ctx.stroke();
       }
+      raf = requestAnimationFrame(draw);
     }
     ensureRunning();
     document.addEventListener("visibilitychange", function() {

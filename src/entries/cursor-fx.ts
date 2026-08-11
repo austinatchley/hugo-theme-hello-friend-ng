@@ -124,7 +124,6 @@ import {
   }
 
   function draw(now: number): void {
-    raf = requestAnimationFrame(draw);
     if (!lastTime) lastTime = now;
     const dt = Math.min((now - lastTime) / 1000, 0.05);
     lastTime = now;
@@ -179,6 +178,8 @@ import {
       ctx!.lineWidth = 1.5;
       ctx!.stroke();
     }
+
+    raf = requestAnimationFrame(draw);
   }
 
   ensureRunning();
