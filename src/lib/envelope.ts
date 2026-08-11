@@ -1,9 +1,9 @@
-import { clamp, lerp } from "./math.js";
+import { clamp, lerp } from './math.js'
 
 export interface ChaseEnvelope {
-  attack: number;
-  decay: number;
-  attackDist: number;
+  attack: number
+  decay: number
+  attackDist: number
 }
 
 /**
@@ -16,16 +16,16 @@ export interface ChaseEnvelope {
  * instead of moving at one constant speed.
  */
 export function chaseFactor(e: ChaseEnvelope, dist: number): number {
-  const t = clamp(dist / e.attackDist, 0, 1);
-  return lerp(e.decay, e.attack, t);
+  const t = clamp(dist / e.attackDist, 0, 1)
+  return lerp(e.decay, e.attack, t)
 }
 
 export interface HaloOpacityEnvelope {
-  attack: number;
-  decay: number;
-  settleDist: number;
-  restOpacity: number;
-  moveOpacity: number;
+  attack: number
+  decay: number
+  settleDist: number
+  restOpacity: number
+  moveOpacity: number
 }
 
 /**
@@ -39,9 +39,9 @@ export function haloOpacityStep(
   e: HaloOpacityEnvelope,
   dist: number,
 ): { factor: number; target: number } {
-  const settled = dist < e.settleDist;
+  const settled = dist < e.settleDist
   return {
     factor: settled ? e.decay : e.attack,
     target: settled ? e.restOpacity : e.moveOpacity,
-  };
+  }
 }

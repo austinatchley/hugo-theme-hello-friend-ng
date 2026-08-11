@@ -7,16 +7,7 @@
   }
 
   // src/lib/spectrum.ts
-  var SPECTRUM = [
-    130,
-    170,
-    210,
-    260,
-    320,
-    350,
-    50,
-    130
-  ];
+  var SPECTRUM = [130, 170, 210, 260, 320, 350, 50, 130];
   function sampleSpectrum(pos) {
     const scaled = wrap01(pos);
     const n = SPECTRUM.length - 1;
@@ -108,10 +99,7 @@
   // src/lib/bandfade.ts
   function bandFadeGeometry(top, bottom, maskFadeFrac) {
     const bandH = bottom - top;
-    const fadePx = Math.max(
-      1,
-      Math.round(Math.min(bandH / 2, bandH * maskFadeFrac))
-    );
+    const fadePx = Math.max(1, Math.round(Math.min(bandH / 2, bandH * maskFadeFrac)));
     const yTop = Math.round(top);
     const yBot = Math.round(bottom);
     return {
@@ -158,9 +146,30 @@
     }
     const QUALITY = detectQuality();
     const QUALITY_PRESETS = {
-      high: { bandCount: 3, segments: 20, noiseEnabled: true, scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: false },
-      medium: { bandCount: 4, segments: 14, noiseEnabled: false, scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: false },
-      low: { bandCount: 2, segments: 10, noiseEnabled: false, scanlinesEnabled: false, glitchEnabled: false, ditherEnabled: false }
+      high: {
+        bandCount: 3,
+        segments: 20,
+        noiseEnabled: true,
+        scanlinesEnabled: true,
+        glitchEnabled: true,
+        ditherEnabled: false
+      },
+      medium: {
+        bandCount: 4,
+        segments: 14,
+        noiseEnabled: false,
+        scanlinesEnabled: true,
+        glitchEnabled: true,
+        ditherEnabled: false
+      },
+      low: {
+        bandCount: 2,
+        segments: 10,
+        noiseEnabled: false,
+        scanlinesEnabled: false,
+        glitchEnabled: false,
+        ditherEnabled: false
+      }
     };
     function buildConfig() {
       const params = new URLSearchParams(location.search);
@@ -295,13 +304,7 @@
         for (const st of stops) {
           hGrad.addColorStop(st.pos, st.col);
         }
-        const {
-          fadePx,
-          yTop,
-          yBot,
-          midTop,
-          midBot
-        } = bandFadeGeometry(top, bottom, CFG.maskFadeFrac);
+        const { fadePx, yTop, yBot, midTop, midBot } = bandFadeGeometry(top, bottom, CFG.maskFadeFrac);
         const waveAmp = bandH * 0.048;
         const waveFreq = 2e-3;
         const wavePhase = t * 0.3 + band.phaseOffset;

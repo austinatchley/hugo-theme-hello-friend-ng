@@ -16,116 +16,113 @@ import {
   repel,
   stepParticle,
   particleStyle,
-} from "../lib/particles-core.js";
+} from '../lib/particles-core.js'
 
-(function () {
-  "use strict";
+;(function () {
+  'use strict'
 
   // ── Canvas setup ──────────────────────────────────────────────────────────
-  const canvas = document.createElement("canvas");
-  canvas.id = "particle-field";
-  canvas.setAttribute("aria-hidden", "true");
-  document.body.appendChild(canvas);
+  const canvas = document.createElement('canvas')
+  canvas.id = 'particle-field'
+  canvas.setAttribute('aria-hidden', 'true')
+  document.body.appendChild(canvas)
 
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
 
-  let W = 0;
-  let H = 0;
-  let particles: Particle[] = [];
+  let W = 0
+  let H = 0
+  let particles: Particle[] = []
 
   function resize(): void {
-    W = canvas.width = window.innerWidth;
-    H = canvas.height = window.innerHeight;
+    W = canvas.width = window.innerWidth
+    H = canvas.height = window.innerHeight
     // Recalculate home positions so particles don't cluster at old coords.
     for (let i = 0; i < particles.length; i++) {
-      particles[i].hx = Math.random() * W;
-      particles[i].hy = Math.random() * H;
+      particles[i].hx = Math.random() * W
+      particles[i].hy = Math.random() * H
     }
   }
 
-  let resizeTimer: ReturnType<typeof setTimeout>;
-  window.addEventListener("resize", function () {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(resize, 120);
-  });
+  let resizeTimer: ReturnType<typeof setTimeout>
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer)
+    resizeTimer = setTimeout(resize, 120)
+  })
 
   // ── Mouse tracking ────────────────────────────────────────────────────────
-  let mx = -9999;
-  let my = -9999;
+  let mx = -9999
+  let my = -9999
 
-  window.addEventListener("mousemove", function (e) {
-    mx = e.clientX;
-    my = e.clientY;
-  });
+  window.addEventListener('mousemove', function (e) {
+    mx = e.clientX
+    my = e.clientY
+  })
 
   // Intentionally no mouseleave handler — particles stay repelled from the
   // last known cursor position so they react to the rings even when the
   // mouse is still.
 
   // ── Draw loop ─────────────────────────────────────────────────────────────
-  let t = 0;
-  let lastTime: number | null = null;
-  let raf: number | null = null;
+  let t = 0
+  let lastTime: number | null = null
+  let raf: number | null = null
 
   // Scratch objects reused every frame to avoid per-particle allocation.
-  const driftOut: DriftTarget = makeDriftTarget();
-  const repelOut: Repulsion = makeRepulsion();
-  const styleOut: ParticleStyle = makeParticleStyle();
+  const driftOut: DriftTarget = makeDriftTarget()
+  const repelOut: Repulsion = makeRepulsion()
+  const styleOut: ParticleStyle = makeParticleStyle()
 
   function loop(now: number): void {
-    raf = requestAnimationFrame(loop);
-    if (!lastTime) lastTime = now;
-    const dt = Math.min((now - lastTime) / 1000, 0.05);
-    lastTime = now;
-    t += dt;
+    raf = requestAnimationFrame(loop)
+    if (!lastTime) lastTime = now
+    const dt = Math.min((now - lastTime) / 1000, 0.05)
+    lastTime = now
+    t += dt
 
-    ctx!.clearRect(0, 0, W, H);
+    ctx!.clearRect(0, 0, W, H)
 
     for (let i = 0; i < particles.length; i++) {
-      const p = particles[i];
+      const p = particles[i]
 
-      drift(p, t, driftOut);
-      const r = repel(p, driftOut.driftX, driftOut.driftY, mx, my, repelOut);
-      stepParticle(p, r);
+      drift(p, t, driftOut)
+      const r = repel(p, driftOut.driftX, driftOut.driftY, mx, my, repelOut)
+      stepParticle(p, r)
 
-      const style = particleStyle(p, r.proximity, styleOut);
+      const style = particleStyle(p, r.proximity, styleOut)
 
       // Radial gradient: gold pinpoint core → teal/blue body → transparent.
-      const grad = ctx!.createRadialGradient(p.x, p.y, 0, p.x, p.y, style.radius);
-      grad.addColorStop(0, "hsla(48,100%,78%," + style.goldAlpha + ")");
+      const grad = ctx!.createRadialGradient(p.x, p.y, 0, p.x, p.y, style.radius)
+      grad.addColorStop(0, 'hsla(48,100%,78%,' + style.goldAlpha + ')')
       grad.addColorStop(
         0.35,
-        "hsla(" + style.hue + "," + style.sat + "%," + style.lum + "%," + style.alpha + ")",
-      );
-      grad.addColorStop(
-        1,
-        "hsla(" + style.hue + "," + style.sat + "%," + style.lum + "%, 0)",
-      );
+        'hsla(' + style.hue + ',' + style.sat + '%,' + style.lum + '%,' + style.alpha + ')',
+      )
+      grad.addColorStop(1, 'hsla(' + style.hue + ',' + style.sat + '%,' + style.lum + '%, 0)')
 
-      ctx!.beginPath();
-      ctx!.arc(p.x, p.y, style.radius, 0, Math.PI * 2);
-      ctx!.fillStyle = grad;
-      ctx!.fill();
+      ctx!.beginPath()
+      ctx!.arc(p.x, p.y, style.radius, 0, Math.PI * 2)
+      ctx!.fillStyle = grad
+      ctx!.fill()
     }
   }
 
   // ── Visibility — pause when tab is hidden ─────────────────────────────────
-  document.addEventListener("visibilitychange", function () {
+  document.addEventListener('visibilitychange', function () {
     if (document.hidden) {
-      if (raf !== null) cancelAnimationFrame(raf);
-      raf = null;
-      lastTime = null;
+      if (raf !== null) cancelAnimationFrame(raf)
+      raf = null
+      lastTime = null
     } else {
-      lastTime = null;
-      requestAnimationFrame(loop);
+      lastTime = null
+      requestAnimationFrame(loop)
     }
-  });
+  })
 
   // ── Boot ──────────────────────────────────────────────────────────────────
   // W/H must be set before initParticles so home positions are valid.
-  W = canvas.width = window.innerWidth;
-  H = canvas.height = window.innerHeight;
-  particles = initParticles(W, H);
-  requestAnimationFrame(loop);
-})();
+  W = canvas.width = window.innerWidth
+  H = canvas.height = window.innerHeight
+  particles = initParticles(W, H)
+  requestAnimationFrame(loop)
+})()

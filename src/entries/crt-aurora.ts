@@ -2,34 +2,34 @@
  * crt-aurora — CRT scanline + aurora background. Loaded with `defer` on every
  * page via layouts/partials/extra-head.html.
  */
-import { auroraColumn } from "../lib/spectrum.js";
-import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
-import { bandFadeGeometry } from "../lib/bandfade.js";
+import { auroraColumn } from '../lib/spectrum.js'
+import { FrameMeter, perfHudEnabled, formatStats } from '../lib/perf.js'
+import { bandFadeGeometry } from '../lib/bandfade.js'
 
-(function () {
-  "use strict";
+;(function () {
+  'use strict'
 
-  const canvas = document.getElementById("crt-aurora") as HTMLCanvasElement | null;
-  if (!canvas) return;
+  const canvas = document.getElementById('crt-aurora') as HTMLCanvasElement | null
+  if (!canvas) return
 
   // Default 2d context: GPU-backed. The glitch uses a self drawImage copy
   // (stays on the GPU) instead of getImageData/putImageData, so no CPU
   // readback is needed and every other draw call stays hardware accelerated.
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
 
   // Scanline overlay canvas — full-resolution sibling rendered on top of the
   // aurora. Its own 1px dark rows stay crisp because the CSS blur that
   // softens the aurora only applies to #crt-aurora, not this layer.
-  const scanCanvas = document.getElementById("crt-scanlines") as HTMLCanvasElement | null;
-  const sctx = scanCanvas ? scanCanvas.getContext("2d") : null;
+  const scanCanvas = document.getElementById('crt-scanlines') as HTMLCanvasElement | null
+  const sctx = scanCanvas ? scanCanvas.getContext('2d') : null
 
-  let W = 0;
-  let H = 0;
-  let t = 0;
-  let raf: number | null = null;
-  let lastTime: number | null = null;
-  let frameCount = 0;
+  let W = 0
+  let H = 0
+  let t = 0
+  let raf: number | null = null
+  let lastTime: number | null = null
+  let frameCount = 0
 
   // Cursor rings and click ripples are handled globally by cursor-fx.
 
@@ -37,128 +37,156 @@ import { bandFadeGeometry } from "../lib/bandfade.js";
   // All tunable knobs in one place. Override via URL params if needed:
   //   ?bands=4&segments=16&bandHeight=0.55&noiseOpacity=0.03&renderScale=0.75
   interface AuroraConfig {
-    bands: Band[];
-    segments: number;
-    bandHeight: number;      // fraction of screen height
-    yJitterAmp: number;      // sine amplitude for band y-position wobble
-    yJitterSpeed: number;    // sine speed for y-jitter
-    segmentJitterAmp: number; // sine amplitude for segment boundary wobble
-    segmentJitterSpeed: number; // sine speed for segment jitter
-    noiseOpacity: number;     // global noise overlay opacity
-    noiseTileSize: number;    // noise texture size (square)
-    scanlineOpacity: number;  // scanline darkness
-    scanlineSpacing: number;  // pixels between scanlines
-    rollSpeed: number;        // vertical roll drift rate
-    rollHeight: number;       // roll gradient height in px
-    maskFadeFrac: number;     // fraction of bandH covered by each vertical fade
-    glitchCooldownMin: number;
-    glitchCooldownMax: number;
-    glitchShiftMax: number;
-    glitchHeightMax: number;
-    renderScale: number;      // internal canvas resolution as fraction of viewport
-    backgroundColor: string;
+    bands: Band[]
+    segments: number
+    bandHeight: number // fraction of screen height
+    yJitterAmp: number // sine amplitude for band y-position wobble
+    yJitterSpeed: number // sine speed for y-jitter
+    segmentJitterAmp: number // sine amplitude for segment boundary wobble
+    segmentJitterSpeed: number // sine speed for segment jitter
+    noiseOpacity: number // global noise overlay opacity
+    noiseTileSize: number // noise texture size (square)
+    scanlineOpacity: number // scanline darkness
+    scanlineSpacing: number // pixels between scanlines
+    rollSpeed: number // vertical roll drift rate
+    rollHeight: number // roll gradient height in px
+    maskFadeFrac: number // fraction of bandH covered by each vertical fade
+    glitchCooldownMin: number
+    glitchCooldownMax: number
+    glitchShiftMax: number
+    glitchHeightMax: number
+    renderScale: number // internal canvas resolution as fraction of viewport
+    backgroundColor: string
   }
 
   // Default band definitions (phaseOffsets randomized on init)
-  const DEFAULT_BANDS: Omit<Band, "offset" | "phaseOffset">[] = [
-    { speed: 0.20, xSpeed: 1.4, yFrac: 0.22, amp: 0.08 },
-    { speed: 0.16, xSpeed: 1.1, yFrac: 0.50, amp: 0.07 },
+  const DEFAULT_BANDS: Omit<Band, 'offset' | 'phaseOffset'>[] = [
+    { speed: 0.2, xSpeed: 1.4, yFrac: 0.22, amp: 0.08 },
+    { speed: 0.16, xSpeed: 1.1, yFrac: 0.5, amp: 0.07 },
     { speed: 0.18, xSpeed: 1.6, yFrac: 0.78, amp: 0.06 },
-  ];
+  ]
 
-  const AURORA_STORAGE_KEY = "aurora_state";
+  const AURORA_STORAGE_KEY = 'aurora_state'
 
   // ── Quality tier ─────────────────────────────────────────────────────────────
   // Determined by: ?quality=low|medium|high URL param (highest priority),
   // then prefers-reduced-motion media query, then default 'high'.
-  type Quality = "high" | "medium" | "low";
+  type Quality = 'high' | 'medium' | 'low'
 
   function detectQuality(): Quality {
     try {
-      const q = new URLSearchParams(location.search).get("quality");
-      if (q === "low" || q === "medium" || q === "high") return q;
-    } catch { /* ignore */ }
+      const q = new URLSearchParams(location.search).get('quality')
+      if (q === 'low' || q === 'medium' || q === 'high') return q
+    } catch {
+      /* ignore */
+    }
 
     try {
-      if (matchMedia("(prefers-reduced-motion: reduce)").matches) return "low";
-    } catch { /* ignore */ }
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return 'low'
+    } catch {
+      /* ignore */
+    }
 
-    return "high";
+    return 'high'
   }
 
-  const QUALITY = detectQuality();
+  const QUALITY = detectQuality()
 
   // Quality presets: [bandCount, segments, noise, scanlines, glitch, dither]
-  const QUALITY_PRESETS: Record<Quality, {
-    bandCount: number;
-    segments: number;
-    noiseEnabled: boolean;
-    scanlinesEnabled: boolean;
-    glitchEnabled: boolean;
-    ditherEnabled: boolean;
-  }> = {
-    high:   { bandCount: 3, segments: 20, noiseEnabled: true,  scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: false },
-    medium: { bandCount: 4, segments: 14, noiseEnabled: false, scanlinesEnabled: true, glitchEnabled: true, ditherEnabled: false },
-    low:    { bandCount: 2, segments: 10, noiseEnabled: false, scanlinesEnabled: false, glitchEnabled: false, ditherEnabled: false },
-  };
+  const QUALITY_PRESETS: Record<
+    Quality,
+    {
+      bandCount: number
+      segments: number
+      noiseEnabled: boolean
+      scanlinesEnabled: boolean
+      glitchEnabled: boolean
+      ditherEnabled: boolean
+    }
+  > = {
+    high: {
+      bandCount: 3,
+      segments: 20,
+      noiseEnabled: true,
+      scanlinesEnabled: true,
+      glitchEnabled: true,
+      ditherEnabled: false,
+    },
+    medium: {
+      bandCount: 4,
+      segments: 14,
+      noiseEnabled: false,
+      scanlinesEnabled: true,
+      glitchEnabled: true,
+      ditherEnabled: false,
+    },
+    low: {
+      bandCount: 2,
+      segments: 10,
+      noiseEnabled: false,
+      scanlinesEnabled: false,
+      glitchEnabled: false,
+      ditherEnabled: false,
+    },
+  }
 
   // Build config with URL param overrides
   function buildConfig(): AuroraConfig {
-    const params = new URLSearchParams(location.search);
+    const params = new URLSearchParams(location.search)
     const getFloat = (key: string, fallback: number) => {
-      const v = params.get(key);
-      return v !== null ? parseFloat(v) : fallback;
-    };
+      const v = params.get(key)
+      return v !== null ? parseFloat(v) : fallback
+    }
     const getInt = (key: string, fallback: number) => {
-      const v = params.get(key);
-      return v !== null ? parseInt(v, 10) : fallback;
-    };
-    const getStr = (key: string, fallback: string) => params.get(key) ?? fallback;
+      const v = params.get(key)
+      return v !== null ? parseInt(v, 10) : fallback
+    }
+    const getStr = (key: string, fallback: string) => params.get(key) ?? fallback
 
     // Offsets are set later (restore or randomize)
-    const bands: Band[] = DEFAULT_BANDS.map(b => ({ ...b, offset: 0, phaseOffset: 0 }));
+    const bands: Band[] = DEFAULT_BANDS.map((b) => ({ ...b, offset: 0, phaseOffset: 0 }))
 
     return {
       bands,
-      segments: getInt("segments", QUALITY_PRESETS[QUALITY].segments),
-      bandHeight: getFloat("bandHeight", 0.6),
-      yJitterAmp: getFloat("yJitterAmp", 0.02),
-      yJitterSpeed: getFloat("yJitterSpeed", 0.43),
-      segmentJitterAmp: getFloat("segmentJitterAmp", 0.04),
-      segmentJitterSpeed: getFloat("segmentJitterSpeed", 0.6),
-      noiseOpacity: getFloat("noiseOpacity", 0.08),
-      noiseTileSize: getInt("noiseTileSize", 256),
-      scanlineOpacity: getFloat("scanlineOpacity", 0.45),
-      scanlineSpacing: getInt("scanlineSpacing", 3),
-      rollSpeed: getFloat("rollSpeed", 38),
-      rollHeight: getInt("rollHeight", 100),
-      maskFadeFrac: getFloat("maskFadeFrac", 0.3),
-      glitchCooldownMin: getFloat("glitchCooldownMin", 3.5),
-      glitchCooldownMax: getFloat("glitchCooldownMax", 5),
-      glitchShiftMax: getFloat("glitchShiftMax", 16),
-      glitchHeightMax: getInt("glitchHeightMax", 2),
-      renderScale: getFloat("renderScale", 0.8),
-      backgroundColor: getStr("bgColor", "#15202b"),
-    };
+      segments: getInt('segments', QUALITY_PRESETS[QUALITY].segments),
+      bandHeight: getFloat('bandHeight', 0.6),
+      yJitterAmp: getFloat('yJitterAmp', 0.02),
+      yJitterSpeed: getFloat('yJitterSpeed', 0.43),
+      segmentJitterAmp: getFloat('segmentJitterAmp', 0.04),
+      segmentJitterSpeed: getFloat('segmentJitterSpeed', 0.6),
+      noiseOpacity: getFloat('noiseOpacity', 0.08),
+      noiseTileSize: getInt('noiseTileSize', 256),
+      scanlineOpacity: getFloat('scanlineOpacity', 0.45),
+      scanlineSpacing: getInt('scanlineSpacing', 3),
+      rollSpeed: getFloat('rollSpeed', 38),
+      rollHeight: getInt('rollHeight', 100),
+      maskFadeFrac: getFloat('maskFadeFrac', 0.3),
+      glitchCooldownMin: getFloat('glitchCooldownMin', 3.5),
+      glitchCooldownMax: getFloat('glitchCooldownMax', 5),
+      glitchShiftMax: getFloat('glitchShiftMax', 16),
+      glitchHeightMax: getInt('glitchHeightMax', 2),
+      renderScale: getFloat('renderScale', 0.8),
+      backgroundColor: getStr('bgColor', '#15202b'),
+    }
   }
 
-  const CFG = buildConfig();
-  let QP = { ...QUALITY_PRESETS[QUALITY] };
-  let currentQuality: Quality = QUALITY;
-  const QUALITY_ORDER: Quality[] = ["high", "medium", "low"];
+  const CFG = buildConfig()
+  let QP = { ...QUALITY_PRESETS[QUALITY] }
+  let currentQuality: Quality = QUALITY
+  const QUALITY_ORDER: Quality[] = ['high', 'medium', 'low']
 
   // Downgrade quality if p95 frame time exceeds threshold for 120 consecutive
   // frames. Monitored once per second (~60 frames at 60fps).
   function checkFrameBudget(): void {
-    if (currentQuality === "low") return;
-    const s = meter.stats();
-    if (!s || s.count < 60) return;
-    const threshold = currentQuality === "high" ? 16 : 20;
+    if (currentQuality === 'low') return
+    const s = meter.stats()
+    if (!s || s.count < 60) return
+    const threshold = currentQuality === 'high' ? 16 : 20
     if (s.p95 > threshold) {
-      const idx = QUALITY_ORDER.indexOf(currentQuality);
+      const idx = QUALITY_ORDER.indexOf(currentQuality)
       if (idx < QUALITY_ORDER.length - 1) {
-        currentQuality = QUALITY_ORDER[idx + 1];
-        QP = { ...QUALITY_PRESETS[currentQuality] };
+        currentQuality = QUALITY_ORDER[idx + 1]
+        QP = { ...QUALITY_PRESETS[currentQuality] }
       }
     }
   }
@@ -170,69 +198,68 @@ import { bandFadeGeometry } from "../lib/bandfade.js";
   // Cleared on full page reload (Cmd+R / F5).
   function restoreAuroraState(): void {
     try {
-      const nav = performance.getEntriesByType("navigation")[0] as
-        | PerformanceNavigationTiming
-        | undefined;
-      if (nav && nav.type === "reload") {
-        localStorage.removeItem(AURORA_STORAGE_KEY);
-        randomizeOffsets();
-        return;
+      const nav = performance.getEntriesByType('navigation')[0] as
+        PerformanceNavigationTiming | undefined
+      if (nav && nav.type === 'reload') {
+        localStorage.removeItem(AURORA_STORAGE_KEY)
+        randomizeOffsets()
+        return
       }
     } catch {
       /* navigation API not available */
     }
 
-    const saved = localStorage.getItem(AURORA_STORAGE_KEY);
+    const saved = localStorage.getItem(AURORA_STORAGE_KEY)
     if (saved) {
       try {
         const state = JSON.parse(saved) as {
-          offsets: number[];
-          phaseOffsets: number[];
-          time: number;
-          savedAt: number;
-          quality?: Quality;
-        };
-        const offsets = state.offsets;
-        const phaseOffsets = state.phaseOffsets;
+          offsets: number[]
+          phaseOffsets: number[]
+          time: number
+          savedAt: number
+          quality?: Quality
+        }
+        const offsets = state.offsets
+        const phaseOffsets = state.phaseOffsets
         for (let i = 0; i < CFG.bands.length && i < offsets.length; i++) {
-          CFG.bands[i].offset = offsets[i];
+          CFG.bands[i].offset = offsets[i]
         }
         for (let i = 0; i < CFG.bands.length && i < phaseOffsets.length; i++) {
-          CFG.bands[i].phaseOffset = phaseOffsets[i];
+          CFG.bands[i].phaseOffset = phaseOffsets[i]
         }
-        const elapsed = (Date.now() - (state.savedAt || Date.now())) / 1000;
-        t = (state.time || 0) + Math.max(0, elapsed);
+        const elapsed = (Date.now() - (state.savedAt || Date.now())) / 1000
+        t = (state.time || 0) + Math.max(0, elapsed)
         if (state.quality && QUALITY_ORDER.indexOf(state.quality) >= 0) {
-          currentQuality = state.quality;
-          QP = { ...QUALITY_PRESETS[currentQuality] };
+          currentQuality = state.quality
+          QP = { ...QUALITY_PRESETS[currentQuality] }
         }
-        return;
+        return
       } catch {
         /* corrupt state */
-        localStorage.removeItem(AURORA_STORAGE_KEY);
+        localStorage.removeItem(AURORA_STORAGE_KEY)
       }
     }
 
-    randomizeOffsets();
+    randomizeOffsets()
   }
 
   function randomizeOffsets(): void {
     for (const band of CFG.bands) {
-      band.offset = Math.random();
-      band.phaseOffset = Math.random() * Math.PI * 2;
+      band.offset = Math.random()
+      band.phaseOffset = Math.random() * Math.PI * 2
     }
   }
 
   function saveAuroraState(): void {
     try {
       const state = {
-        offsets: CFG.bands.map(b => b.offset),
-        phaseOffsets: CFG.bands.map(b => b.phaseOffset),
+        offsets: CFG.bands.map((b) => b.offset),
+        phaseOffsets: CFG.bands.map((b) => b.phaseOffset),
         time: t,
         savedAt: Date.now(),
         quality: currentQuality,
-      };
-      localStorage.setItem(AURORA_STORAGE_KEY, JSON.stringify(state));
+      }
+      localStorage.setItem(AURORA_STORAGE_KEY, JSON.stringify(state))
     } catch {
       /* storage full or blocked */
     }
@@ -240,49 +267,55 @@ import { bandFadeGeometry } from "../lib/bandfade.js";
 
   // ── Aurora bands ──────────────────────────────────────────────────────────
   interface Band {
-    speed: number;
-    xSpeed: number;
-    yFrac: number;
-    amp: number;
-    offset: number;
-    phaseOffset: number;
+    speed: number
+    xSpeed: number
+    yFrac: number
+    amp: number
+    offset: number
+    phaseOffset: number
   }
 
-  const BANDS = CFG.bands;
+  const BANDS = CFG.bands
 
   function drawAurora(c: CanvasRenderingContext2D): void {
-    const segments = QP.segments;
-    const bandCount = Math.min(QP.bandCount, BANDS.length);
-    const bandH = H * CFG.bandHeight;
+    const segments = QP.segments
+    const bandCount = Math.min(QP.bandCount, BANDS.length)
+    const bandH = H * CFG.bandHeight
 
-    c.globalCompositeOperation = "source-over";
-    c.globalAlpha = 0.69;
+    c.globalCompositeOperation = 'source-over'
+    c.globalAlpha = 0.69
     for (let b = 0; b < bandCount; b++) {
-      const band = BANDS[b];
+      const band = BANDS[b]
 
-        // Y-jitter: slow sine wobble so seams aren't static straight lines.
-      const yJitter = Math.sin(t * CFG.yJitterSpeed + band.phaseOffset) * CFG.yJitterAmp;
-      const centreY = H * (band.yFrac + yJitter + Math.sin(t * band.speed * 0.7 + band.phaseOffset * 1.353) * band.amp);
-      const top = centreY - bandH / 2;
-      const bottom = top + bandH;
+      // Y-jitter: slow sine wobble so seams aren't static straight lines.
+      const yJitter = Math.sin(t * CFG.yJitterSpeed + band.phaseOffset) * CFG.yJitterAmp
+      const centreY =
+        H *
+        (band.yFrac +
+          yJitter +
+          Math.sin(t * band.speed * 0.7 + band.phaseOffset * 1.353) * band.amp)
+      const top = centreY - bandH / 2
+      const bottom = top + bandH
 
       // Horizontal gradient with jittered segment boundaries so vertical colour
       // edges are wavy instead of straight.
-      const stops: { pos: number; col: string }[] = [];
+      const stops: { pos: number; col: string }[] = []
       for (let s = 0; s < segments; s++) {
-        const base = s / segments;
-        const jitter = Math.sin(t * CFG.segmentJitterSpeed + s * 1.1 + band.phaseOffset * 0.692) * CFG.segmentJitterAmp;
-        const pos = Math.max(0, Math.min(1, base + jitter));
-        const xMid = (pos + (s + 0.5) / segments) / 2;
-        const col = auroraColumn(xMid, band.xSpeed, band.offset, t);
-        stops.push({ pos, col: col.peak });
+        const base = s / segments
+        const jitter =
+          Math.sin(t * CFG.segmentJitterSpeed + s * 1.1 + band.phaseOffset * 0.692) *
+          CFG.segmentJitterAmp
+        const pos = Math.max(0, Math.min(1, base + jitter))
+        const xMid = (pos + (s + 0.5) / segments) / 2
+        const col = auroraColumn(xMid, band.xSpeed, band.offset, t)
+        stops.push({ pos, col: col.peak })
       }
       // Final stop at 1
-      stops.push({ pos: 1, col: auroraColumn(1, band.xSpeed, band.offset, t).peak });
+      stops.push({ pos: 1, col: auroraColumn(1, band.xSpeed, band.offset, t).peak })
 
-      const hGrad = c.createLinearGradient(0, top, W, top);
+      const hGrad = c.createLinearGradient(0, top, W, top)
       for (const st of stops) {
-        hGrad.addColorStop(st.pos, st.col);
+        hGrad.addColorStop(st.pos, st.col)
       }
 
       // Vertical fade mask. The old approach — a white linear-gradient filled
@@ -295,91 +328,93 @@ import { bandFadeGeometry } from "../lib/bandfade.js";
       // Clamp to bandH/2 so the top and bottom fade loops can never overlap;
       // otherwise a large maskFadeFrac would double-draw rows and leave a
       // brighter seam where both ramps stack.
-      const {
-        fadePx,
-        yTop,
-        yBot,
-        midTop,
-        midBot,
-      } = bandFadeGeometry(top, bottom, CFG.maskFadeFrac);
+      const { fadePx, yTop, yBot, midTop, midBot } = bandFadeGeometry(top, bottom, CFG.maskFadeFrac)
 
       // Clip to the band area. The sine-wave top/bottom edges crop the fade
       // rows so band edges stay wavy, never straight horizontal lines.
-      const waveAmp = bandH * 0.048;
-      const waveFreq = 0.002;
-      const wavePhase = t * 0.3 + band.phaseOffset;
-      const steps = Math.ceil(W / 8);
-      c.save();
-      c.beginPath();
-      c.moveTo(0, top + Math.sin(0 + wavePhase) * waveAmp);
+      const waveAmp = bandH * 0.048
+      const waveFreq = 0.002
+      const wavePhase = t * 0.3 + band.phaseOffset
+      const steps = Math.ceil(W / 8)
+      c.save()
+      c.beginPath()
+      c.moveTo(0, top + Math.sin(0 + wavePhase) * waveAmp)
       for (let i = 1; i <= steps; i++) {
-        const x = (i / steps) * W;
-        const wave = Math.sin(x * waveFreq + wavePhase) * waveAmp;
-        c.lineTo(x, top + wave);
+        const x = (i / steps) * W
+        const wave = Math.sin(x * waveFreq + wavePhase) * waveAmp
+        c.lineTo(x, top + wave)
       }
       for (let i = steps; i >= 0; i--) {
-        const x = (i / steps) * W;
-        const wave = Math.sin(x * waveFreq + wavePhase) * waveAmp;
-        c.lineTo(x, bottom + wave);
+        const x = (i / steps) * W
+        const wave = Math.sin(x * waveFreq + wavePhase) * waveAmp
+        c.lineTo(x, bottom + wave)
       }
-      c.closePath();
-      c.clip();
+      c.closePath()
+      c.clip()
 
       // Plateau: one opaque fill at base opacity.
-      c.globalAlpha = 0.69;
-      c.fillStyle = hGrad;
-      const midH = midBot - midTop;
-      if (midH > 0) c.fillRect(0, midTop, W, midH);
+      c.globalAlpha = 0.69
+      c.fillStyle = hGrad
+      const midH = midBot - midTop
+      if (midH > 0) c.fillRect(0, midTop, W, midH)
 
       // Top fade: alpha ramps 0→1 across the first fadePx rows.
       for (let y = yTop; y < midTop; y++) {
-        c.globalAlpha = 0.69 * ((y - yTop + 0.5) / fadePx);
-        c.fillRect(0, y, W, 1);
+        c.globalAlpha = 0.69 * ((y - yTop + 0.5) / fadePx)
+        c.fillRect(0, y, W, 1)
       }
       // Bottom fade: alpha ramps 1→0 across the last fadePx rows.
       for (let y = midBot; y < yBot; y++) {
-        c.globalAlpha = 0.69 * ((yBot - 1 - y + 0.5) / fadePx);
-        c.fillRect(0, y, W, 1);
+        c.globalAlpha = 0.69 * ((yBot - 1 - y + 0.5) / fadePx)
+        c.fillRect(0, y, W, 1)
       }
 
-      c.restore();
+      c.restore()
     }
-    c.globalAlpha = 1;
+    c.globalAlpha = 1
   }
 
   // ── Noise overlay (CSS) ─────────────────────────────────────────────────────
   // A fixed div with a pre-generated noise PNG as background-image, composited
   // by the browser's GPU layer. Zero per-frame JS cost.
   function injectNoiseOverlay(): void {
-    if (!QP.noiseEnabled) return;
+    if (!QP.noiseEnabled) return
     // Generate noise PNG once as a base64 data URL
-    const nc = document.createElement("canvas");
-    const nw = CFG.noiseTileSize;
-    const nh = CFG.noiseTileSize;
-    nc.width = nw;
-    nc.height = nh;
-    const nctx = nc.getContext("2d")!;
-    const img = nctx.createImageData(nw, nh);
-    const d = img.data;
+    const nc = document.createElement('canvas')
+    const nw = CFG.noiseTileSize
+    const nh = CFG.noiseTileSize
+    nc.width = nw
+    nc.height = nh
+    const nctx = nc.getContext('2d')!
+    const img = nctx.createImageData(nw, nh)
+    const d = img.data
     for (let i = 0; i < d.length; i += 4) {
-      const v = Math.random() * 255;
-      d[i] = v;
-      d[i + 1] = v;
-      d[i + 2] = v;
-      d[i + 3] = 30 + Math.random() * 40;
+      const v = Math.random() * 255
+      d[i] = v
+      d[i + 1] = v
+      d[i + 2] = v
+      d[i + 3] = 30 + Math.random() * 40
     }
-    nctx.putImageData(img, 0, 0);
-    const dataUrl = nc.toDataURL("image/png");
+    nctx.putImageData(img, 0, 0)
+    const dataUrl = nc.toDataURL('image/png')
 
-    const div = document.createElement("div");
+    const div = document.createElement('div')
     div.style.cssText =
-      "position:fixed;inset:0;z-index:900;pointer-events:none;" +
-      "background-image:url('" + dataUrl + "');" +
-      "background-repeat:repeat;" +
-      "background-size:" + nw + "px " + nh + "px;" +
-      "opacity:" + CFG.noiseOpacity + ";" +
-      "mix-blend-mode:overlay;";
-    document.body.appendChild(div);
+      'position:fixed;inset:0;z-index:900;pointer-events:none;' +
+      "background-image:url('" +
+      dataUrl +
+      "');" +
+      'background-repeat:repeat;' +
+      'background-size:' +
+      nw +
+      'px ' +
+      nh +
+      'px;' +
+      'opacity:' +
+      CFG.noiseOpacity +
+      ';' +
+      'mix-blend-mode:overlay;'
+    document.body.appendChild(div)
   }
 
   // ── Scanlines ─────────────────────────────────────────────────────────────
@@ -389,38 +424,38 @@ import { bandFadeGeometry } from "../lib/bandfade.js";
   // On a CPU-backed canvas (willReadFrequently) the pattern fill touches every
   // pixel while "rows" touches only 1/3 of them, so "rows" can be faster there.
   // Selectable via ?scanlines=rows|pattern for live A/B measurement.
-  let scanlineMode: "pattern" | "rows" = "rows";
+  let scanlineMode: 'pattern' | 'rows' = 'rows'
   try {
-    const m = new URLSearchParams(location.search).get("scanlines");
-    if (m === "rows" || m === "pattern") scanlineMode = m;
+    const m = new URLSearchParams(location.search).get('scanlines')
+    if (m === 'rows' || m === 'pattern') scanlineMode = m
   } catch {
     /* ignore */
   }
 
-  let scanlinePattern: CanvasPattern | null = null;
+  let scanlinePattern: CanvasPattern | null = null
 
   function buildScanlinePattern(c: CanvasRenderingContext2D): void {
-    const tile = document.createElement("canvas");
-    tile.width = 1;
-    tile.height = CFG.scanlineSpacing;
-    const tctx = tile.getContext("2d");
-    if (!tctx) return;
-    tctx.fillStyle = "rgba(0,0,0," + CFG.scanlineOpacity + ")";
-    tctx.fillRect(0, 0, 1, 1); // dark row; remaining rows stay transparent
-    scanlinePattern = c.createPattern(tile, "repeat");
+    const tile = document.createElement('canvas')
+    tile.width = 1
+    tile.height = CFG.scanlineSpacing
+    const tctx = tile.getContext('2d')
+    if (!tctx) return
+    tctx.fillStyle = 'rgba(0,0,0,' + CFG.scanlineOpacity + ')'
+    tctx.fillRect(0, 0, 1, 1) // dark row; remaining rows stay transparent
+    scanlinePattern = c.createPattern(tile, 'repeat')
   }
 
   // Precomputed once in band-local coordinates (0..rollHeight); drawScanlines
   // positions it per-frame with a translate instead of reallocating a
   // CanvasGradient every frame.
-  let rollGrad: CanvasGradient | null = null;
+  let rollGrad: CanvasGradient | null = null
 
   function buildRollGradient(c: CanvasRenderingContext2D): void {
-    const g = c.createLinearGradient(0, 0, 0, CFG.rollHeight);
-    g.addColorStop(0, "rgba(255,255,255,0)");
-    g.addColorStop(0.5, "rgba(255,255,255,0.015)");
-    g.addColorStop(1, "rgba(255,255,255,0)");
-    rollGrad = g;
+    const g = c.createLinearGradient(0, 0, 0, CFG.rollHeight)
+    g.addColorStop(0, 'rgba(255,255,255,0)')
+    g.addColorStop(0.5, 'rgba(255,255,255,0.015)')
+    g.addColorStop(1, 'rgba(255,255,255,0)')
+    rollGrad = g
   }
 
   function drawScanlines(c: CanvasRenderingContext2D): void {
@@ -428,15 +463,15 @@ import { bandFadeGeometry } from "../lib/bandfade.js";
     // pixel holds a semi-transparent dark value. The canvas element's CSS
     // mix-blend-mode: multiply then darkens only where a row overlaps the
     // aurora underneath — crisp because this layer never gets the aurora's blur.
-    c.clearRect(0, 0, c.canvas.width, c.canvas.height);
-    c.globalCompositeOperation = "source-over";
-    if (scanlineMode === "pattern" && scanlinePattern) {
-      c.fillStyle = scanlinePattern;
-      c.fillRect(0, 0, c.canvas.width, c.canvas.height);
+    c.clearRect(0, 0, c.canvas.width, c.canvas.height)
+    c.globalCompositeOperation = 'source-over'
+    if (scanlineMode === 'pattern' && scanlinePattern) {
+      c.fillStyle = scanlinePattern
+      c.fillRect(0, 0, c.canvas.width, c.canvas.height)
     } else {
-      c.fillStyle = "rgba(0,0,0," + CFG.scanlineOpacity + ")";
+      c.fillStyle = 'rgba(0,0,0,' + CFG.scanlineOpacity + ')'
       for (let y = 0; y < c.canvas.height; y += CFG.scanlineSpacing) {
-        c.fillRect(0, y, c.canvas.width, 1);
+        c.fillRect(0, y, c.canvas.width, 1)
       }
     }
   }
@@ -446,30 +481,31 @@ import { bandFadeGeometry } from "../lib/bandfade.js";
     // the aurora canvas (lightens, so it can't live in the multiply layer).
     // The gradient is precomputed (buildRollGradient) in band-local coords,
     // so a cheap translate positions it instead of allocating per frame.
-    const rollY = ((t * CFG.rollSpeed) % (H + 100)) - 50;
-    c.setTransform(1, 0, 0, 1, 0, rollY);
-    c.fillStyle = rollGrad!;
-    c.fillRect(0, 0, W, CFG.rollHeight);
-    c.setTransform(1, 0, 0, 1, 0, 0);
+    const rollY = ((t * CFG.rollSpeed) % (H + 100)) - 50
+    c.setTransform(1, 0, 0, 1, 0, rollY)
+    c.fillStyle = rollGrad!
+    c.fillRect(0, 0, W, CFG.rollHeight)
+    c.setTransform(1, 0, 0, 1, 0, 0)
   }
 
   // ── Horizontal glitch ─────────────────────────────────────────────────────
-  let glitchCooldown = 4;
+  let glitchCooldown = 4
 
   function maybeGlitch(dt: number): void {
-    glitchCooldown -= dt;
-    if (glitchCooldown > 0) return;
-    glitchCooldown = CFG.glitchCooldownMin + Math.random() * (CFG.glitchCooldownMax - CFG.glitchCooldownMin);
+    glitchCooldown -= dt
+    if (glitchCooldown > 0) return
+    glitchCooldown =
+      CFG.glitchCooldownMin + Math.random() * (CFG.glitchCooldownMax - CFG.glitchCooldownMin)
 
-    const lineY = Math.floor(Math.random() * H);
-    const lineH = Math.floor(Math.random() * CFG.glitchHeightMax) + 1;
-    const shift = (Math.random() - 0.5) * CFG.glitchShiftMax;
+    const lineY = Math.floor(Math.random() * H)
+    const lineH = Math.floor(Math.random() * CFG.glitchHeightMax) + 1
+    const shift = (Math.random() - 0.5) * CFG.glitchShiftMax
 
     // Self-copy via drawImage: the browser snapshots the source region and
     // blits it back offset — GPU resident, no CPU readback, unlike
     // getImageData/putImageData which force a sync stall on GPU-backed canvases.
     try {
-      ctx!.drawImage(ctx!.canvas, 0, lineY, W, lineH, shift, lineY, W, lineH);
+      ctx!.drawImage(ctx!.canvas, 0, lineY, W, lineH, shift, lineY, W, lineH)
     } catch {
       /* ignore cross-origin errors */
     }
@@ -481,75 +517,80 @@ import { bandFadeGeometry } from "../lib/bandfade.js";
   // Combined with the CSS blur(8px) the lower resolution is visually invisible
   // while cutting per-frame pixel work by ~64%. Full res via ?renderScale=1.
   function resize(): void {
-    W = canvas!.width = Math.max(1, Math.floor(window.innerWidth * CFG.renderScale));
-    H = canvas!.height = Math.max(1, Math.floor(window.innerHeight * CFG.renderScale));
+    W = canvas!.width = Math.max(1, Math.floor(window.innerWidth * CFG.renderScale))
+    H = canvas!.height = Math.max(1, Math.floor(window.innerHeight * CFG.renderScale))
     // Scanline overlay runs at full CSS resolution so the 1px rows stay crisp.
     if (scanCanvas) {
-      scanCanvas.width = Math.max(1, window.innerWidth);
-      scanCanvas.height = Math.max(1, window.innerHeight);
+      scanCanvas.width = Math.max(1, window.innerWidth)
+      scanCanvas.height = Math.max(1, window.innerHeight)
     }
   }
 
-  let resizeTimer: ReturnType<typeof setTimeout>;
-  window.addEventListener("resize", function () {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(resize, 120);
-  });
+  let resizeTimer: ReturnType<typeof setTimeout>
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer)
+    resizeTimer = setTimeout(resize, 120)
+  })
 
   // ── Perf HUD (opt-in) ──────────────────────────────────────────────────────
-  const meter = new FrameMeter();
-  const hudOn = perfHudEnabled();
-  let hud: HTMLDivElement | null = null;
-  let hudCooldown = 0;
+  const meter = new FrameMeter()
+  const hudOn = perfHudEnabled()
+  let hud: HTMLDivElement | null = null
+  let hudCooldown = 0
 
   if (hudOn) {
-    hud = document.createElement("div");
-    hud.id = "aurora-perf-hud";
+    hud = document.createElement('div')
+    hud.id = 'aurora-perf-hud'
     hud.style.cssText =
-      "position:fixed;top:8px;left:8px;z-index:100000;font:12px/1.4 monospace;" +
-      "color:#0f0;background:rgba(0,0,0,0.7);padding:6px 8px;white-space:pre;" +
-      "pointer-events:none;border-radius:4px;";
-    document.body.appendChild(hud);
+      'position:fixed;top:8px;left:8px;z-index:100000;font:12px/1.4 monospace;' +
+      'color:#0f0;background:rgba(0,0,0,0.7);padding:6px 8px;white-space:pre;' +
+      'pointer-events:none;border-radius:4px;'
+    document.body.appendChild(hud)
   }
 
   // ── Main loop ─────────────────────────────────────────────────────────────
   function loop(now: number): void {
-    raf = requestAnimationFrame(loop);
-    if (!lastTime) lastTime = now;
-    const dt = Math.min((now - lastTime) / 1000, 0.05);
-    lastTime = now;
-    t += dt;
-    frameCount++;
+    raf = requestAnimationFrame(loop)
+    if (!lastTime) lastTime = now
+    const dt = Math.min((now - lastTime) / 1000, 0.05)
+    lastTime = now
+    t += dt
+    frameCount++
 
-    const workStart = performance.now();
+    const workStart = performance.now()
 
     // Cap aurora render to ~30fps (every other vblank) so cursor-fx gets more
     // main-thread time. Skip frames still run the glitch effect.
     if (frameCount % 2 === 0) {
-      ctx!.clearRect(0, 0, W, H);
-      ctx!.fillStyle = CFG.backgroundColor;
-      ctx!.fillRect(0, 0, W, H);
-      drawAurora(ctx!);
+      ctx!.clearRect(0, 0, W, H)
+      ctx!.fillStyle = CFG.backgroundColor
+      ctx!.fillRect(0, 0, W, H)
+      drawAurora(ctx!)
       // Scanlines drawn on their own full-res layer so they stay crisp.
-      if (QP.scanlinesEnabled && sctx) drawScanlines(sctx);
-      if (QP.scanlinesEnabled) drawRoll(ctx!);
+      if (QP.scanlinesEnabled && sctx) drawScanlines(sctx)
+      if (QP.scanlinesEnabled) drawRoll(ctx!)
     }
-    if (QP.glitchEnabled) maybeGlitch(dt);
+    if (QP.glitchEnabled) maybeGlitch(dt)
 
-    meter.record(performance.now() - workStart);
+    meter.record(performance.now() - workStart)
 
     // Check frame budget every ~60 frames (roughly once per second)
-    if (frameCount % 60 === 0) checkFrameBudget();
+    if (frameCount % 60 === 0) checkFrameBudget()
 
     if (hudOn && hud) {
-      hudCooldown -= dt;
+      hudCooldown -= dt
       if (hudCooldown <= 0) {
-        hudCooldown = 0.25; // refresh HUD text ~4×/sec
-        const s = meter.stats();
+        hudCooldown = 0.25 // refresh HUD text ~4×/sec
+        const s = meter.stats()
         if (s) {
           hud.textContent =
-            formatStats("aurora[" + scanlineMode + "]", s) +
-            "\nsamples " + s.count + "  " + W + "×" + H;
+            formatStats('aurora[' + scanlineMode + ']', s) +
+            '\nsamples ' +
+            s.count +
+            '  ' +
+            W +
+            '×' +
+            H
         }
       }
     }
@@ -558,28 +599,28 @@ import { bandFadeGeometry } from "../lib/bandfade.js";
   // ── Visibility — save state on navigate-away, pause when tab hidden ────────
   // pagehide fires on navigation (not just tab switch), which is when we
   // want to persist state so the next page load can restore it.
-  window.addEventListener("pagehide", saveAuroraState);
+  window.addEventListener('pagehide', saveAuroraState)
 
-  document.addEventListener("visibilitychange", function () {
+  document.addEventListener('visibilitychange', function () {
     if (document.hidden) {
-      if (raf !== null) cancelAnimationFrame(raf);
-      lastTime = null;
+      if (raf !== null) cancelAnimationFrame(raf)
+      lastTime = null
     } else {
-      lastTime = null;
-      requestAnimationFrame(loop);
+      lastTime = null
+      requestAnimationFrame(loop)
     }
-  });
+  })
 
   // ── Boot ──────────────────────────────────────────────────────────────────
-  resize();
-  restoreAuroraState();
-  injectNoiseOverlay();
-  buildScanlinePattern(sctx ? sctx : ctx!);
-  buildRollGradient(ctx!);
-  requestAnimationFrame(loop);
+  resize()
+  restoreAuroraState()
+  injectNoiseOverlay()
+  buildScanlinePattern(sctx ? sctx : ctx!)
+  buildRollGradient(ctx!)
+  requestAnimationFrame(loop)
 
   // Expose for Playwright perf harness (machine-readable JSON, not DOM text).
-  window.__auroraMeter = meter;
-  window.__scanlineMode = scanlineMode;
-  window.__resetAuroraMeter = () => meter.reset();
-})();
+  window.__auroraMeter = meter
+  window.__scanlineMode = scanlineMode
+  window.__resetAuroraMeter = () => meter.reset()
+})()

@@ -1,14 +1,14 @@
 export interface BandFadeGeometry {
   /** Width (in px) of each vertical fade ramp. */
-  fadePx: number;
+  fadePx: number
   /** Rounded index of the band's top row. */
-  yTop: number;
+  yTop: number
   /** Rounded index one past the band's bottom row. */
-  yBot: number;
+  yBot: number
   /** First plateau row. */
-  midTop: number;
+  midTop: number
   /** One past the last plateau row. */
-  midBot: number;
+  midBot: number
 }
 
 /**
@@ -24,18 +24,15 @@ export function bandFadeGeometry(
   bottom: number,
   maskFadeFrac: number,
 ): BandFadeGeometry {
-  const bandH = bottom - top;
-  const fadePx = Math.max(
-    1,
-    Math.round(Math.min(bandH / 2, bandH * maskFadeFrac)),
-  );
-  const yTop = Math.round(top);
-  const yBot = Math.round(bottom);
+  const bandH = bottom - top
+  const fadePx = Math.max(1, Math.round(Math.min(bandH / 2, bandH * maskFadeFrac)))
+  const yTop = Math.round(top)
+  const yBot = Math.round(bottom)
   return {
     fadePx,
     yTop,
     yBot,
     midTop: yTop + fadePx,
     midBot: yBot - fadePx,
-  };
+  }
 }

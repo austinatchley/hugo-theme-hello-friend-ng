@@ -4,9 +4,7 @@
   // src/entries/menu.ts
   var menuTrigger = document.querySelector(".menu-trigger");
   var menu = document.querySelector(".menu");
-  var mobileQuery = getComputedStyle(document.body).getPropertyValue(
-    "--phoneWidth"
-  );
+  var mobileQuery = getComputedStyle(document.body).getPropertyValue("--phoneWidth");
   var isMobile = () => window.matchMedia(mobileQuery).matches;
   var isMobileMenu = () => {
     if (menuTrigger) menuTrigger.classList.toggle("hidden", !isMobile());

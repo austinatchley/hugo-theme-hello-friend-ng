@@ -137,10 +137,7 @@
           0.35,
           "hsla(" + style.hue + "," + style.sat + "%," + style.lum + "%," + style.alpha + ")"
         );
-        grad.addColorStop(
-          1,
-          "hsla(" + style.hue + "," + style.sat + "%," + style.lum + "%, 0)"
-        );
+        grad.addColorStop(1, "hsla(" + style.hue + "," + style.sat + "%," + style.lum + "%, 0)");
         ctx.beginPath();
         ctx.arc(p.x, p.y, style.radius, 0, Math.PI * 2);
         ctx.fillStyle = grad;
