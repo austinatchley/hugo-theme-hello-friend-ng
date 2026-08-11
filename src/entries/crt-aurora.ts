@@ -4,6 +4,7 @@
  */
 import { auroraColumn } from "../lib/spectrum.js";
 import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
+import { bandFadeGeometry } from "../lib/bandfade.js";
 
 (function () {
   "use strict";
@@ -294,14 +295,13 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
       // Clamp to bandH/2 so the top and bottom fade loops can never overlap;
       // otherwise a large maskFadeFrac would double-draw rows and leave a
       // brighter seam where both ramps stack.
-      const fadePx = Math.max(
-        1,
-        Math.round(Math.min(bandH / 2, bandH * CFG.maskFadeFrac)),
-      );
-      const yTop = Math.round(top);
-      const yBot = Math.round(bottom);
-      const midTop = yTop + fadePx;                  // first plateau row
-      const midBot = yBot - fadePx;                  // one past last plateau row
+      const {
+        fadePx,
+        yTop,
+        yBot,
+        midTop,
+        midBot,
+      } = bandFadeGeometry(top, bottom, CFG.maskFadeFrac);
 
       // Clip to the band area. The sine-wave top/bottom edges crop the fade
       // rows so band edges stay wavy, never straight horizontal lines.

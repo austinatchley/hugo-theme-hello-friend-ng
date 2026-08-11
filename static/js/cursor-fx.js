@@ -9,6 +9,19 @@
     return v < min ? min : v > max ? max : v;
   }
 
+  // src/lib/envelope.ts
+  function chaseFactor(e, dist) {
+    const t = clamp(dist / e.attackDist, 0, 1);
+    return lerp(e.decay, e.attack, t);
+  }
+  function haloOpacityStep(e, dist) {
+    const settled = dist < e.settleDist;
+    return {
+      factor: settled ? e.decay : e.attack,
+      target: settled ? e.restOpacity : e.moveOpacity
+    };
+  }
+
   // src/lib/rings.ts
   var RIPPLE_LIFE = 1.4;
   var MAX_RIPPLES = 7;
@@ -106,20 +119,24 @@
       t += dt;
       if (mx !== -9999) {
         const dist = Math.hypot(mx - hx, my - hy);
-        const k = lerp(
-          HALO_DECAY,
-          HALO_ATTACK,
-          clamp(dist / HALO_ATTACK_DIST, 0, 1)
+        const k = chaseFactor(
+          { attack: HALO_ATTACK, decay: HALO_DECAY, attackDist: HALO_ATTACK_DIST },
+          dist
         );
         hx = lerp(hx, mx, k);
         hy = lerp(hy, my, k);
         halo.style.transform = "translate(" + (hx - 150) + "px," + (hy - 150) + "px)";
-        const settled = dist < 0.5;
-        haloOpacity = lerp(
-          haloOpacity,
-          settled ? HALO_REST_OPACITY : HALO_MOVE_OPACITY,
-          settled ? HALO_OPACITY_DECAY : HALO_OPACITY_ATTACK
+        const step = haloOpacityStep(
+          {
+            attack: HALO_OPACITY_ATTACK,
+            decay: HALO_OPACITY_DECAY,
+            settleDist: 0.5,
+            restOpacity: HALO_REST_OPACITY,
+            moveOpacity: HALO_MOVE_OPACITY
+          },
+          dist
         );
+        haloOpacity = lerp(haloOpacity, step.target, step.factor);
         halo.style.opacity = String(haloOpacity);
       }
       if (isIdle()) {

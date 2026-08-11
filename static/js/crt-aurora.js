@@ -105,6 +105,24 @@
     return label + "  med " + s.median.toFixed(2) + "ms  p95 " + s.p95.toFixed(2) + "ms  max " + s.max.toFixed(2) + "ms  (" + s.fpsFromMedian.toFixed(0) + " fps)";
   }
 
+  // src/lib/bandfade.ts
+  function bandFadeGeometry(top, bottom, maskFadeFrac) {
+    const bandH = bottom - top;
+    const fadePx = Math.max(
+      1,
+      Math.round(Math.min(bandH / 2, bandH * maskFadeFrac))
+    );
+    const yTop = Math.round(top);
+    const yBot = Math.round(bottom);
+    return {
+      fadePx,
+      yTop,
+      yBot,
+      midTop: yTop + fadePx,
+      midBot: yBot - fadePx
+    };
+  }
+
   // src/entries/crt-aurora.ts
   (function() {
     "use strict";
@@ -277,14 +295,13 @@
         for (const st of stops) {
           hGrad.addColorStop(st.pos, st.col);
         }
-        const fadePx = Math.max(
-          1,
-          Math.round(Math.min(bandH / 2, bandH * CFG.maskFadeFrac))
-        );
-        const yTop = Math.round(top);
-        const yBot = Math.round(bottom);
-        const midTop = yTop + fadePx;
-        const midBot = yBot - fadePx;
+        const {
+          fadePx,
+          yTop,
+          yBot,
+          midTop,
+          midBot
+        } = bandFadeGeometry(top, bottom, CFG.maskFadeFrac);
         const waveAmp = bandH * 0.048;
         const waveFreq = 2e-3;
         const wavePhase = t * 0.3 + band.phaseOffset;

@@ -1,7 +1,8 @@
 /**
  * cursor-fx — cursor halo lighting + click ripples. Loads on all pages.
  */
-import { clamp, lerp } from "../lib/math.js";
+import { lerp } from "../lib/math.js";
+import { chaseFactor, haloOpacityStep } from "../lib/envelope.js";
 import {
   type Ripple,
   pushRipple,
@@ -133,10 +134,9 @@ import {
     // the opacity with its own attack/decay rates.
     if (mx !== -9999) {
       const dist = Math.hypot(mx - hx, my - hy);
-      const k = lerp(
-        HALO_DECAY,
-        HALO_ATTACK,
-        clamp(dist / HALO_ATTACK_DIST, 0, 1),
+      const k = chaseFactor(
+        { attack: HALO_ATTACK, decay: HALO_DECAY, attackDist: HALO_ATTACK_DIST },
+        dist,
       );
       hx = lerp(hx, mx, k);
       hy = lerp(hy, my, k);
@@ -145,12 +145,17 @@ import {
 
       // While still chasing, opacity attacks up to full brightness. Once the
       // halo converges on the cursor it decays down to the resting glow.
-      const settled = dist < 0.5;
-      haloOpacity = lerp(
-        haloOpacity,
-        settled ? HALO_REST_OPACITY : HALO_MOVE_OPACITY,
-        settled ? HALO_OPACITY_DECAY : HALO_OPACITY_ATTACK,
+      const step = haloOpacityStep(
+        {
+          attack: HALO_OPACITY_ATTACK,
+          decay: HALO_OPACITY_DECAY,
+          settleDist: 0.5,
+          restOpacity: HALO_REST_OPACITY,
+          moveOpacity: HALO_MOVE_OPACITY,
+        },
+        dist,
       );
+      haloOpacity = lerp(haloOpacity, step.target, step.factor);
       halo.style.opacity = String(haloOpacity);
     }
 
