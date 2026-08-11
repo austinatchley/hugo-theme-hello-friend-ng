@@ -19,31 +19,27 @@
   &__content {
     display: flex;
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
+    justify-content: center;
+    row-gap: 6px;
     font-size: 1rem;
     color: $light-color-secondary;
 
     @media #{$media-size-tablet} {
-      flex-direction: column;
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: center;
       margin-top: 10px;
     }
 
     & > *:not(:last-child)::after {
       content: "•";
       padding: 0 5px;
-
-      @media #{$media-size-tablet} {
-          content: "";
-          padding: 0;
-      }
     }
 
     & > *:last-child {
       padding: 0 0px;
-
-      @media #{$media-size-tablet} {
-          padding: 0;
-      }
     }
   }
 }
