@@ -13,7 +13,10 @@ isMobileMenu()
 
 if (menuTrigger) {
   menuTrigger.addEventListener('click', () => {
-    if (menu) menu.classList.toggle('hidden')
+    if (menu) {
+      menu.classList.toggle('hidden')
+      menuTrigger.classList.toggle('is-open', !menu.classList.contains('hidden'))
+    }
   })
 }
 

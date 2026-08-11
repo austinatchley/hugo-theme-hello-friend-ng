@@ -55,12 +55,32 @@
   }
 
   &-trigger {
-    width: 48px;
-    height: 24px;
-    fill: currentColor;
-    margin-left: 10px;
-    cursor: pointer;
     display: none;
+    padding: 5px 10px;
+    margin: 0 6px 0 0;
+    border: 1px solid #04885e;
+    border-radius: 6px;
+    color: #04885e;
+    cursor: pointer;
+
+    svg {
+      display: block;
+      width: 42px;
+      height: 24px;
+      fill: currentColor;
+    }
+
+    &:hover {
+      background: transparent;
+      color: #04885e;
+    }
+
+    // Menu-open state: fill green with dark icon so the tap registers.
+    &.is-open,
+    &:active {
+      background: #04885e;
+      color: #15202b;
+    }
 
     @media #{$media-size-phone} {
       display: block;
