@@ -388,7 +388,7 @@
       g.addColorStop(1, "rgba(255,255,255,0)");
       rollGrad = g;
     }
-    function drawScanlines(c) {
+    function paintScanlines(c) {
       c.clearRect(0, 0, c.canvas.width, c.canvas.height);
       c.globalCompositeOperation = "source-over";
       if (scanlineMode === "pattern" && scanlinePattern) {
@@ -427,6 +427,7 @@
       if (scanCanvas) {
         scanCanvas.width = Math.max(1, window.innerWidth);
         scanCanvas.height = Math.max(1, window.innerHeight);
+        if (QP.scanlinesEnabled && sctx) paintScanlines(sctx);
       }
     }
     let resizeTimer;
@@ -457,7 +458,6 @@
         ctx.fillStyle = CFG.backgroundColor;
         ctx.fillRect(0, 0, W, H);
         drawAurora(ctx);
-        if (QP.scanlinesEnabled && sctx) drawScanlines(sctx);
         if (QP.scanlinesEnabled) drawRoll(ctx);
       }
       if (QP.glitchEnabled) maybeGlitch(dt);
@@ -484,10 +484,10 @@
         requestAnimationFrame(loop);
       }
     });
+    buildScanlinePattern(sctx ? sctx : ctx);
     resize();
     restoreAuroraState();
     injectNoiseOverlay();
-    buildScanlinePattern(sctx ? sctx : ctx);
     buildRollGradient(ctx);
     requestAnimationFrame(loop);
     window.__auroraMeter = meter;

@@ -418,11 +418,14 @@ import { bandFadeGeometry } from '../lib/bandfade.js'
   }
 
   // ── Scanlines ─────────────────────────────────────────────────────────────
-  // The scanline stripes are static (a 1px dark row every 3px). Two strategies:
-  //   "pattern" — bake a 1×3 tile once, paint one repeating-pattern fill/frame.
+  // The scanline stripes are static (a 1px dark row every 3px) — the rows never
+  // move or change, so this layer is painted ONCE (on init and resize) rather
+  // than every frame. The canvas's CSS mix-blend-mode: multiply still darkens
+  // over the moving aurora underneath at composite time, so the visual result
+  // is identical while avoiding hundreds of fillRects per frame on a full-res
+  // multiply overlay. Two strategies:
+  //   "pattern" — bake a 1×3 tile once, paint one repeating-pattern fill.
   //   "rows"    — the original: one thin fillRect per stripe row.
-  // On a CPU-backed canvas (willReadFrequently) the pattern fill touches every
-  // pixel while "rows" touches only 1/3 of them, so "rows" can be faster there.
   // Selectable via ?scanlines=rows|pattern for live A/B measurement.
   let scanlineMode: 'pattern' | 'rows' = 'rows'
   try {
@@ -458,11 +461,12 @@ import { bandFadeGeometry } from '../lib/bandfade.js'
     rollGrad = g
   }
 
-  function drawScanlines(c: CanvasRenderingContext2D): void {
+  function paintScanlines(c: CanvasRenderingContext2D): void {
     // The overlay canvas is transparent; rows are painted normally so each
     // pixel holds a semi-transparent dark value. The canvas element's CSS
     // mix-blend-mode: multiply then darkens only where a row overlaps the
-    // aurora underneath — crisp because this layer never gets the aurora's blur.
+    // aurora underneath — crisp because this layer never gets the aurora's
+    // blur. Painted once on init/resize (see loop comment above).
     c.clearRect(0, 0, c.canvas.width, c.canvas.height)
     c.globalCompositeOperation = 'source-over'
     if (scanlineMode === 'pattern' && scanlinePattern) {
@@ -520,9 +524,11 @@ import { bandFadeGeometry } from '../lib/bandfade.js'
     W = canvas!.width = Math.max(1, Math.floor(window.innerWidth * CFG.renderScale))
     H = canvas!.height = Math.max(1, Math.floor(window.innerHeight * CFG.renderScale))
     // Scanline overlay runs at full CSS resolution so the 1px rows stay crisp.
+    // Repaint it here because resizing the canvas wipes its bitmap.
     if (scanCanvas) {
       scanCanvas.width = Math.max(1, window.innerWidth)
       scanCanvas.height = Math.max(1, window.innerHeight)
+      if (QP.scanlinesEnabled && sctx) paintScanlines(sctx)
     }
   }
 
@@ -566,8 +572,7 @@ import { bandFadeGeometry } from '../lib/bandfade.js'
       ctx!.fillStyle = CFG.backgroundColor
       ctx!.fillRect(0, 0, W, H)
       drawAurora(ctx!)
-      // Scanlines drawn on their own full-res layer so they stay crisp.
-      if (QP.scanlinesEnabled && sctx) drawScanlines(sctx)
+      // scanlines are static -> painted once on init/resize, not per frame.
       if (QP.scanlinesEnabled) drawRoll(ctx!)
     }
     if (QP.glitchEnabled) maybeGlitch(dt)
@@ -612,10 +617,12 @@ import { bandFadeGeometry } from '../lib/bandfade.js'
   })
 
   // ── Boot ──────────────────────────────────────────────────────────────────
+  // Build the scanline pattern before the first resize() so the initial
+  // one-time paint uses the selected ?scanlines strategy.
+  buildScanlinePattern(sctx ? sctx : ctx!)
   resize()
   restoreAuroraState()
   injectNoiseOverlay()
-  buildScanlinePattern(sctx ? sctx : ctx!)
   buildRollGradient(ctx!)
   requestAnimationFrame(loop)
 
