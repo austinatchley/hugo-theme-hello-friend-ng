@@ -62,13 +62,13 @@ $review-border: 1px solid var(--border-color, rgba(255,255,255,0.1));
 }
 
 .review-cover-wrap {
-  width: 400px;
+  width: 500px;
   margin: 0 auto;
   padding-top: 3rem;
 
   @media (max-width: 600px) {
     position: static;
-    max-width: 240px;
+    max-width: 320px;
   }
 }
 
