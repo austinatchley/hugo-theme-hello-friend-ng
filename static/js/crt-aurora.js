@@ -277,7 +277,10 @@
         for (const st of stops) {
           hGrad.addColorStop(st.pos, st.col);
         }
-        const fadePx = Math.max(1, Math.round(bandH * CFG.maskFadeFrac));
+        const fadePx = Math.max(
+          1,
+          Math.round(Math.min(bandH / 2, bandH * CFG.maskFadeFrac))
+        );
         const yTop = Math.round(top);
         const yBot = Math.round(bottom);
         const midTop = yTop + fadePx;

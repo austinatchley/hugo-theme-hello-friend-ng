@@ -291,7 +291,13 @@ import { FrameMeter, perfHudEnabled, formatStats } from "../lib/perf.js";
       // asymmetry once the CSS blur(8px) is applied). Per-row fills with a
       // row-local globalAlpha can't be mis-rasterized that way, so each fade
       // is an exact linear ramp.
-      const fadePx = Math.max(1, Math.round(bandH * CFG.maskFadeFrac));
+      // Clamp to bandH/2 so the top and bottom fade loops can never overlap;
+      // otherwise a large maskFadeFrac would double-draw rows and leave a
+      // brighter seam where both ramps stack.
+      const fadePx = Math.max(
+        1,
+        Math.round(Math.min(bandH / 2, bandH * CFG.maskFadeFrac)),
+      );
       const yTop = Math.round(top);
       const yBot = Math.round(bottom);
       const midTop = yTop + fadePx;                  // first plateau row
