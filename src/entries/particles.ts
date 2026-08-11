@@ -17,6 +17,7 @@ import {
   stepParticle,
   particleStyle,
 } from '../lib/particles-core.js'
+import { FrameMeter, perfHudEnabled, formatStats } from '../lib/perf.js'
 
 ;(function () {
   'use strict'
@@ -73,12 +74,30 @@ import {
   const repelOut: Repulsion = makeRepulsion()
   const styleOut: ParticleStyle = makeParticleStyle()
 
+  // ── Perf HUD + FrameMeter ─────────────────────────────────────────────────
+  const meter = new FrameMeter()
+  const hudOn = perfHudEnabled()
+  let hud: HTMLDivElement | null = null
+  let hudCooldown = 0
+
+  if (hudOn) {
+    hud = document.createElement('div')
+    hud.id = 'particle-perf-hud'
+    hud.style.cssText =
+      'position:fixed;top:8px;left:8px;z-index:100000;font:12px/1.4 monospace;' +
+      'color:#0f0;background:rgba(0,0,0,0.7);padding:6px 8px;white-space:pre;' +
+      'pointer-events:none;border-radius:4px;'
+    document.body.appendChild(hud)
+  }
+
   function loop(now: number): void {
     raf = requestAnimationFrame(loop)
     if (!lastTime) lastTime = now
     const dt = Math.min((now - lastTime) / 1000, 0.05)
     lastTime = now
     t += dt
+
+    const workStart = performance.now()
 
     ctx!.clearRect(0, 0, W, H)
 
@@ -105,6 +124,20 @@ import {
       ctx!.fillStyle = grad
       ctx!.fill()
     }
+
+    meter.record(performance.now() - workStart)
+
+    if (hudOn && hud) {
+      hudCooldown -= dt
+      if (hudCooldown <= 0) {
+        hudCooldown = 0.25 // refresh HUD text ~4×/sec
+        const s = meter.stats()
+        if (s) {
+          hud.textContent =
+            formatStats('particles', s) + '\nsamples ' + s.count + '  ' + W + '×' + H
+        }
+      }
+    }
   }
 
   // ── Visibility — pause when tab is hidden ─────────────────────────────────
@@ -125,4 +158,8 @@ import {
   H = canvas.height = window.innerHeight
   particles = initParticles(W, H)
   requestAnimationFrame(loop)
+
+  // Expose for Playwright perf harness (machine-readable JSON, not DOM text).
+  window.__particleMeter = meter
+  window.__resetParticleMeter = () => meter.reset()
 })()

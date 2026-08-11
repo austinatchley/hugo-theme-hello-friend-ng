@@ -38,6 +38,67 @@
     };
   }
 
+  // src/lib/perf.ts
+  var FrameMeter = class {
+    constructor(capacity = 240) {
+      this.samples = [];
+      this.capacity = capacity;
+    }
+    /** Record one frame's work duration in milliseconds. */
+    record(ms) {
+      this.samples.push(ms);
+      if (this.samples.length > this.capacity) this.samples.shift();
+    }
+    /** Discard all recorded samples (used by the perf harness warmup). */
+    reset() {
+      this.samples.length = 0;
+    }
+    /** Number of recorded samples currently in the window. */
+    size() {
+      return this.samples.length;
+    }
+    /** Compute rolling stats. Returns null when there are no samples. */
+    stats() {
+      const n = this.samples.length;
+      if (n === 0) return null;
+      const sorted = this.samples.slice().sort((a, b) => a - b);
+      const median = percentile(sorted, 0.5);
+      return {
+        count: n,
+        median,
+        p95: percentile(sorted, 0.95),
+        max: sorted[n - 1],
+        fpsFromMedian: median > 0 ? 1e3 / median : 0
+      };
+    }
+  };
+  function percentile(sorted, q) {
+    const n = sorted.length;
+    if (n === 0) return 0;
+    if (n === 1) return sorted[0];
+    const idx = q * (n - 1);
+    const lo = Math.floor(idx);
+    const hi = Math.ceil(idx);
+    if (lo === hi) return sorted[lo];
+    const frac = idx - lo;
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * frac;
+  }
+  function perfHudEnabled() {
+    try {
+      if (typeof location !== "undefined" && /[?&]perfhud\b/.test(location.search)) {
+        return true;
+      }
+      if (typeof localStorage !== "undefined" && localStorage.getItem("perfhud") === "1") {
+        return true;
+      }
+    } catch {
+    }
+    return false;
+  }
+  function formatStats(label, s) {
+    return label + "  med " + s.median.toFixed(2) + "ms  p95 " + s.p95.toFixed(2) + "ms  max " + s.max.toFixed(2) + "ms  (" + s.fpsFromMedian.toFixed(0) + " fps)";
+  }
+
   // src/entries/cursor-fx.ts
   (function() {
     "use strict";
@@ -103,6 +164,18 @@
     let t = 0;
     let lastTime = null;
     let raf = null;
+    const meter = new FrameMeter();
+    const hudOn = perfHudEnabled();
+    let hud = null;
+    let hudCooldown = 0;
+    if (hudOn) {
+      hud = document.createElement("div");
+      hud.id = "cursor-perf-hud";
+      hud.style.cssText = "position:fixed;top:8px;left:8px;z-index:100000;font:12px/1.4 monospace;color:#0f0;background:rgba(0,0,0,0.7);padding:6px 8px;white-space:pre;pointer-events:none;border-radius:4px;";
+      document.body.appendChild(hud);
+      hud.textContent = "cursor-fx: warming up\u2026";
+    }
+    meter.record(0);
     function isIdle() {
       return mx === -9999 || Math.abs(mx - hx) < 0.5 && Math.abs(my - hy) < 0.5 && ripples.length === 0 && Math.abs(haloOpacity - HALO_REST_OPACITY) < 0.01;
     }
@@ -117,6 +190,7 @@
       const dt = Math.min((now - lastTime) / 1e3, 0.05);
       lastTime = now;
       t += dt;
+      const workStart = performance.now();
       if (mx !== -9999) {
         const dist = Math.hypot(mx - hx, my - hy);
         const k = chaseFactor(
@@ -140,6 +214,8 @@
         halo.style.opacity = String(haloOpacity);
       }
       if (isIdle()) {
+        meter.record(performance.now() - workStart);
+        refreshHud(dt);
         raf = null;
         lastTime = null;
         canvas.style.opacity = "0";
@@ -158,7 +234,21 @@
         ctx.lineWidth = 1.5;
         ctx.stroke();
       }
+      meter.record(performance.now() - workStart);
+      refreshHud(dt);
       raf = requestAnimationFrame(draw);
+    }
+    function refreshHud(dt) {
+      if (hudOn && hud) {
+        hudCooldown -= dt;
+        if (hudCooldown <= 0) {
+          hudCooldown = 0.25;
+          const s = meter.stats();
+          if (s) {
+            hud.textContent = formatStats("cursor-fx", s) + "\nsamples " + s.count + "  " + W + "\xD7" + H;
+          }
+        }
+      }
     }
     ensureRunning();
     document.addEventListener("visibilitychange", function() {
@@ -170,5 +260,7 @@
         raf = requestAnimationFrame(draw);
       }
     });
+    window.__cursorMeter = meter;
+    window.__resetCursorMeter = () => meter.reset();
   })();
 })();

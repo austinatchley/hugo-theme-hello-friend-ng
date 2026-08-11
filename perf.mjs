@@ -10,8 +10,11 @@
  * -----
  *   node perf.mjs                          # default: aurora scanline A/B
  *   node perf.mjs --input static/js/particles.js  # benchmark any animation
+ *   node perf.mjs --input static/js/cursor-fx.js  # cursor halo + ripples
  *   node perf.mjs --scanlines rows         # single-mode aurora test
  *   node perf.mjs --scanlines rows --scanlines pattern  # explicit A/B list
+ *   node perf.mjs --meter __cursorMeter    # override meter global (default: guessed)
+ *   node perf.mjs --interact               # jiggle the pointer so parked loops draw
  *
  * Requirements: playwright (devDependency), chromium installed via
  *   npx playwright install chromium
@@ -34,6 +37,42 @@ const WARMUP_FRAMES = 120;
 const TRIAL_FRAMES = 240;
 const TRIALS = 5;
 const VIEWPORT = { width: 1280, height: 720 };
+
+// ── Meter global detection ───────────────────────────────────────────────────
+const METER_BY_INPUT = [
+  { match: /crt-aurora/, meter: "__auroraMeter" },
+  { match: /particles/, meter: "__particleMeter" },
+  { match: /cursor-fx/, meter: "__cursorMeter" },
+];
+
+function guessMeter(input) {
+  for (const rule of METER_BY_INPUT) {
+    if (rule.match.test(input)) return rule.meter;
+  }
+  return "__auroraMeter";
+}
+
+// ── Keepalive interaction ────────────────────────────────────────────────────
+/**
+ * cursor-fx parks its rAF loop when idle (halo converged, no ripples), so a
+ * static page never draws enough frames to fill the meter. Jiggling the
+ * pointer keeps the loop hot. Returns a stop() function.
+ */
+function startPointerJiggle(page) {
+  let angle = 0;
+  const id = setInterval(() => {
+    angle += 0.6;
+    const x = 100 + Math.round(200 + 120 * Math.sin(angle));
+    const y = 100 + Math.round(200 + 120 * Math.cos(angle));
+    page.mouse.move(x, y).catch(() => {});
+  }, 32);
+  return () => clearInterval(id);
+}
+
+// ── Should the animation's loop keep itself alive? ───────────────────────────
+function needsInteraction(input) {
+  return /cursor-fx/.test(input);
+}
 
 // ── Stats helpers ────────────────────────────────────────────────────────────
 function avg(arr) {
@@ -215,12 +254,16 @@ function printResults(rows, { renderer, viewport, warmup, trialFrames, title }) 
 // ── CLI parsing ──────────────────────────────────────────────────────────────
 function parseArgs() {
   const args = process.argv.slice(2);
-  const opts = { scanlines: [], input: null };
+  const opts = { scanlines: [], input: null, meter: null, interact: false };
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--scanlines") {
       opts.scanlines.push(args[++i]);
     } else if (args[i] === "--input") {
       opts.input = args[++i];
+    } else if (args[i] === "--meter") {
+      opts.meter = args[++i];
+    } else if (args[i] === "--interact") {
+      opts.interact = true;
     }
   }
   return opts;
@@ -240,10 +283,17 @@ async function main() {
   const tmp = createTempPage(html);
 
   let browser;
+  let stopJiggle = null;
   try {
     browser = await chromium.launch({ headless: true });
     const ctx = await browser.newContext({ viewport: VIEWPORT });
     const page = await ctx.newPage();
+
+    // Keep a parked animation (cursor-fx) drawing while we measure, unless
+    // the user explicitly disabled interaction or it isn't needed.
+    const interact =
+      opts.interact || (opts.input && needsInteraction(opts.input));
+    if (interact) stopJiggle = startPointerJiggle(page);
 
     // Detect renderer
     const renderer = await page.evaluate(() => {
@@ -261,12 +311,8 @@ async function main() {
     const scenarios = [];
 
     if (opts.input) {
-      // Single-animation benchmark (any JS with a FrameMeter on window)
-      // User must supply the global name via query param or we guess.
-      const mg = opts.input.includes("crt-aurora") ? "__auroraMeter"
-             : opts.input.includes("particles") ? "__particleMeter"
-             : opts.input.includes("cursor-fx") ? "__cursorMeter"
-             : "__auroraMeter";
+      // Single-animation benchmark (any JS with a FrameMeter on window).
+      const mg = opts.meter || guessMeter(opts.input);
       scenarios.push({ label: opts.input, meterGlobal: mg, url: "file://" + tmp.file });
     } else {
       // Default: aurora scanline A/B
@@ -305,6 +351,7 @@ async function main() {
       title,
     });
   } finally {
+    if (stopJiggle) stopJiggle();
     if (browser) await browser.close();
     tmp.cleanup();
   }

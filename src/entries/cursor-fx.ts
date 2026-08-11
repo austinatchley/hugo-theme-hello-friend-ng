@@ -4,6 +4,7 @@
 import { lerp } from '../lib/math.js'
 import { chaseFactor, haloOpacityStep } from '../lib/envelope.js'
 import { type Ripple, pushRipple, rippleStyle } from '../lib/rings.js'
+import { FrameMeter, perfHudEnabled, formatStats } from '../lib/perf.js'
 
 ;(function () {
   'use strict'
@@ -99,6 +100,28 @@ import { type Ripple, pushRipple, rippleStyle } from '../lib/rings.js'
   let lastTime: number | null = null
   let raf: number | null = null
 
+  // ── Perf HUD + FrameMeter ─────────────────────────────────────────────────
+  const meter = new FrameMeter()
+  const hudOn = perfHudEnabled()
+  let hud: HTMLDivElement | null = null
+  let hudCooldown = 0
+
+  if (hudOn) {
+    hud = document.createElement('div')
+    hud.id = 'cursor-perf-hud'
+    hud.style.cssText =
+      'position:fixed;top:8px;left:8px;z-index:100000;font:12px/1.4 monospace;' +
+      'color:#0f0;background:rgba(0,0,0,0.7);padding:6px 8px;white-space:pre;' +
+      'pointer-events:none;border-radius:4px;'
+    document.body.appendChild(hud)
+    hud.textContent = 'cursor-fx: warming up…'
+  }
+
+  // The halo starts parked off-screen; nothing is drawn until the first
+  // pointermove/click. Record an initial frame so the perf harness has a
+  // meter installed synchronously after load.
+  meter.record(0)
+
   // Park the rAF loop entirely when nothing needs drawing: the halo has
   // converged on the cursor, its opacity has decayed to the resting glow,
   // and no ripples are in flight. Restarted on the next pointermove/click.
@@ -125,6 +148,8 @@ import { type Ripple, pushRipple, rippleStyle } from '../lib/rings.js'
     const dt = Math.min((now - lastTime) / 1000, 0.05)
     lastTime = now
     t += dt
+
+    const workStart = performance.now()
 
     // Lerp halo div toward the cursor with an ADSR chase envelope, and fade
     // the opacity with its own attack/decay rates.
@@ -157,6 +182,8 @@ import { type Ripple, pushRipple, rippleStyle } from '../lib/rings.js'
     if (isIdle()) {
       // Converged and the decay has finished — park the loop with the halo
       // left sitting at its resting glow (never hidden, never zero).
+      meter.record(performance.now() - workStart)
+      refreshHud(dt)
       raf = null
       lastTime = null
       canvas.style.opacity = '0'
@@ -179,7 +206,24 @@ import { type Ripple, pushRipple, rippleStyle } from '../lib/rings.js'
       ctx!.stroke()
     }
 
+    meter.record(performance.now() - workStart)
+    refreshHud(dt)
+
     raf = requestAnimationFrame(draw)
+  }
+
+  function refreshHud(dt: number): void {
+    if (hudOn && hud) {
+      hudCooldown -= dt
+      if (hudCooldown <= 0) {
+        hudCooldown = 0.25 // refresh HUD text ~4×/sec
+        const s = meter.stats()
+        if (s) {
+          hud.textContent =
+            formatStats('cursor-fx', s) + '\nsamples ' + s.count + '  ' + W + '×' + H
+        }
+      }
+    }
   }
 
   ensureRunning()
@@ -191,8 +235,12 @@ import { type Ripple, pushRipple, rippleStyle } from '../lib/rings.js'
       lastTime = null
     } else {
       // draw() parks itself immediately if still idle, so it's safe to always
-      // kick one frame here.
+      // kick one frame.
       raf = requestAnimationFrame(draw)
     }
   })
+
+  // Expose for Playwright perf harness (machine-readable JSON, not DOM text).
+  window.__cursorMeter = meter
+  window.__resetCursorMeter = () => meter.reset()
 })()

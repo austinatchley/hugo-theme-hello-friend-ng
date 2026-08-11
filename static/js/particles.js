@@ -81,6 +81,67 @@
     return out;
   }
 
+  // src/lib/perf.ts
+  var FrameMeter = class {
+    constructor(capacity = 240) {
+      this.samples = [];
+      this.capacity = capacity;
+    }
+    /** Record one frame's work duration in milliseconds. */
+    record(ms) {
+      this.samples.push(ms);
+      if (this.samples.length > this.capacity) this.samples.shift();
+    }
+    /** Discard all recorded samples (used by the perf harness warmup). */
+    reset() {
+      this.samples.length = 0;
+    }
+    /** Number of recorded samples currently in the window. */
+    size() {
+      return this.samples.length;
+    }
+    /** Compute rolling stats. Returns null when there are no samples. */
+    stats() {
+      const n = this.samples.length;
+      if (n === 0) return null;
+      const sorted = this.samples.slice().sort((a, b) => a - b);
+      const median = percentile(sorted, 0.5);
+      return {
+        count: n,
+        median,
+        p95: percentile(sorted, 0.95),
+        max: sorted[n - 1],
+        fpsFromMedian: median > 0 ? 1e3 / median : 0
+      };
+    }
+  };
+  function percentile(sorted, q) {
+    const n = sorted.length;
+    if (n === 0) return 0;
+    if (n === 1) return sorted[0];
+    const idx = q * (n - 1);
+    const lo = Math.floor(idx);
+    const hi = Math.ceil(idx);
+    if (lo === hi) return sorted[lo];
+    const frac = idx - lo;
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * frac;
+  }
+  function perfHudEnabled() {
+    try {
+      if (typeof location !== "undefined" && /[?&]perfhud\b/.test(location.search)) {
+        return true;
+      }
+      if (typeof localStorage !== "undefined" && localStorage.getItem("perfhud") === "1") {
+        return true;
+      }
+    } catch {
+    }
+    return false;
+  }
+  function formatStats(label, s) {
+    return label + "  med " + s.median.toFixed(2) + "ms  p95 " + s.p95.toFixed(2) + "ms  max " + s.max.toFixed(2) + "ms  (" + s.fpsFromMedian.toFixed(0) + " fps)";
+  }
+
   // src/entries/particles.ts
   (function() {
     "use strict";
@@ -118,12 +179,23 @@
     const driftOut = makeDriftTarget();
     const repelOut = makeRepulsion();
     const styleOut = makeParticleStyle();
+    const meter = new FrameMeter();
+    const hudOn = perfHudEnabled();
+    let hud = null;
+    let hudCooldown = 0;
+    if (hudOn) {
+      hud = document.createElement("div");
+      hud.id = "particle-perf-hud";
+      hud.style.cssText = "position:fixed;top:8px;left:8px;z-index:100000;font:12px/1.4 monospace;color:#0f0;background:rgba(0,0,0,0.7);padding:6px 8px;white-space:pre;pointer-events:none;border-radius:4px;";
+      document.body.appendChild(hud);
+    }
     function loop(now) {
       raf = requestAnimationFrame(loop);
       if (!lastTime) lastTime = now;
       const dt = Math.min((now - lastTime) / 1e3, 0.05);
       lastTime = now;
       t += dt;
+      const workStart = performance.now();
       ctx.clearRect(0, 0, W, H);
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
@@ -143,6 +215,17 @@
         ctx.fillStyle = grad;
         ctx.fill();
       }
+      meter.record(performance.now() - workStart);
+      if (hudOn && hud) {
+        hudCooldown -= dt;
+        if (hudCooldown <= 0) {
+          hudCooldown = 0.25;
+          const s = meter.stats();
+          if (s) {
+            hud.textContent = formatStats("particles", s) + "\nsamples " + s.count + "  " + W + "\xD7" + H;
+          }
+        }
+      }
     }
     document.addEventListener("visibilitychange", function() {
       if (document.hidden) {
@@ -158,5 +241,7 @@
     H = canvas.height = window.innerHeight;
     particles = initParticles(W, H);
     requestAnimationFrame(loop);
+    window.__particleMeter = meter;
+    window.__resetParticleMeter = () => meter.reset();
   })();
 })();
