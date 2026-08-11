@@ -363,7 +363,7 @@
       div.style.cssText = "position:fixed;inset:0;z-index:900;pointer-events:none;background-image:url('" + dataUrl + "');background-repeat:repeat;background-size:" + nw + "px " + nh + "px;opacity:" + CFG.noiseOpacity + ";mix-blend-mode:overlay;";
       document.body.appendChild(div);
     }
-    let scanlineMode = "rows";
+    let scanlineMode = "pattern";
     try {
       const m = new URLSearchParams(location.search).get("scanlines");
       if (m === "rows" || m === "pattern") scanlineMode = m;

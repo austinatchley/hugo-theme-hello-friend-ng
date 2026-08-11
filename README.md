@@ -9,7 +9,7 @@ This is my fork of Hello Friend NG.
 - **Playwright perf harness** (`npm run perf`): Loads compiled JS in headless Chromium, drains the meter, prints an A/B comparison table for scanline strategies (`?scanlines=rows|pattern`).
 - **Microbenchmark** (`npm run bench`, `node --expose-gc bench.mjs`): Isolated JS math for particle-loop allocation pressure.
 - **Pre-commit gate**: `npm run check` runs `tsc --noEmit` + `vitest` (49 tests) + `node build.mjs`. Required before every commit.
-- **Scanline default**: `rows` (1px dark fillRect every 3px) — measured 0.30ms med / 0.40ms p95 on desktop GPU; `pattern` had a ~50ms tail spike. Runnable A/B via `?scanlines=rows|pattern`.
+- **Scanline default**: `pattern` (cached repeating `CanvasPattern` fill, painted once since scanlines are static) — measures fastest on desktop GPUs. `rows` (1px dark fillRect every 3px) is the fallback strategy. Runnable A/B via `?scanlines=rows|pattern`.
 
 The information below comes from the original author's README:
 

@@ -425,9 +425,11 @@ import { bandFadeGeometry } from '../lib/bandfade.js'
   // is identical while avoiding hundreds of fillRects per frame on a full-res
   // multiply overlay. Two strategies:
   //   "pattern" — bake a 1×3 tile once, paint one repeating-pattern fill.
-  //   "rows"    — the original: one thin fillRect per stripe row.
+  // "rows"    — the original: one thin fillRect per stripe row.
+  // "pattern" it is: a single cached repeating-pattern fill measures faster
+  // on desktop GPUs (see docs/crt-aurora-animation.md), so it's the default.
   // Selectable via ?scanlines=rows|pattern for live A/B measurement.
-  let scanlineMode: 'pattern' | 'rows' = 'rows'
+  let scanlineMode: 'pattern' | 'rows' = 'pattern'
   try {
     const m = new URLSearchParams(location.search).get('scanlines')
     if (m === 'rows' || m === 'pattern') scanlineMode = m
